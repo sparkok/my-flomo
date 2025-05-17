@@ -6,14 +6,14 @@ import { useState, useEffect, useMemo, useCallback } from "react";
 import NoteInputForm from "@/components/note-input-form";
 import NoteList from "@/components/note-list";
 import TagFilter from "@/components/tag-filter";
-import ExportNotesButton from "@/components/export-notes-button"; 
-import ActivityHeatmap from "@/components/ActivityHeatmap"; 
+import ExportNotesButton from "@/components/export-notes-button";
+import ActivityHeatmap from "@/components/ActivityHeatmap";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { format } from 'date-fns';
-import { 
+import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -23,24 +23,33 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { 
-  RefreshCw, 
-  Search, 
-  Settings2, 
-  BookCopy, 
+import {
+  RefreshCw,
+  Search,
+  Settings2,
+  BookCopy,
   CalendarCheck,
   Package,
   ShieldAlert,
   TrendingUp,
-  Folder 
+  Folder
 } from "lucide-react";
 
 const deriveTitleFromContent = (content: string): string => {
   if (!content) return "";
-  const firstLine = content.split('\n')[0];
-  // Regex to remove tags like #tag or #some/path/tag from the first line
-  const titleWithoutTags = firstLine.replace(/#([^#\s\/]+(?:\/[^#\s\/]+)*)/g, '').trim();
-  return titleWithoutTags;
+  const lines = content.split('\n');
+  for (const line of lines) {
+    let processedLine = line;
+    // Remove [[note:ID]] links
+    processedLine = processedLine.replace(/\[\[note:[^\]]+\]\]/g, '');
+    // Remove #tags
+    processedLine = processedLine.replace(/#([^#\s\/]+(?:\/[^#\s\/]+)*)/g, '');
+    processedLine = processedLine.trim();
+    if (processedLine.length > 0) {
+      return processedLine;
+    }
+  }
+  return ""; // Return empty if no suitable line found
 };
 
 
@@ -62,7 +71,7 @@ export default function HomePage() {
       try {
         const parsedNotes: Note[] = JSON.parse(storedNotes).map((note: any) => ({
           ...note,
-          title: note.title || deriveTitleFromContent(note.content), // Ensure title is derived for older notes
+          title: deriveTitleFromContent(note.content), // Derive title for all notes
           createdAt: new Date(note.createdAt),
         }));
         setNotes(parsedNotes);
@@ -79,7 +88,7 @@ export default function HomePage() {
 
   const extractTagsFromContent = (content: string): string[] => {
     const extracted: string[] = [];
-    const regex = /#([^#\s\/]+(?:\/[^#\s\/]+)*)/g; 
+    const regex = /#([^#\s\/]+(?:\/[^#\s\/]+)*)/g;
     let match;
     while ((match = regex.exec(content)) !== null) {
       extracted.push(match[1]);
@@ -105,7 +114,7 @@ export default function HomePage() {
 
     const extractedTags = extractTagsFromContent(content);
     const derivedTitle = deriveTitleFromContent(content);
-    
+
     if (noteIdToUpdate) {
       const updatedNote: Note = {
         id: noteIdToUpdate,
@@ -184,7 +193,6 @@ export default function HomePage() {
   const allTags = useMemo(() => {
     const tagsSet = new Set<string>();
     notes.forEach(note => note.tags.forEach(tag => tagsSet.add(tag)));
-    // Removed: ["产品", "故障检测", "成长"].forEach(st => tagsSet.add(st));
     return Array.from(tagsSet).sort();
   }, [notes]);
 
@@ -219,21 +227,21 @@ export default function HomePage() {
             <div><p className="text-lg font-medium text-foreground">347</p><p>标签</p></div>
             <div><p className="text-lg font-medium text-foreground">1183</p><p>天</p></div>
           </div>
-          
+
           <ActivityHeatmap notes={notes} currentDate={currentDate} />
 
           <Button variant="default" className="w-full bg-primary hover:bg-accent text-primary-foreground justify-start px-3">
             <BookCopy className="mr-2 h-4 w-4" />
             全部笔记
           </Button>
-          
+
           <nav className="flex flex-col space-y-1 text-sm">
             <Button variant="ghost" className="w-full justify-start text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground px-3">
               <CalendarCheck className="mr-2 h-4 w-4" />
               每日回顾
             </Button>
           </nav>
-          
+
           <Separator className="my-2 bg-sidebar-border"/>
 
           <div className="flex-grow overflow-y-auto pr-1 -mr-2">
@@ -259,10 +267,10 @@ export default function HomePage() {
             </div>
             <div className="flex items-center space-x-2 w-1/3">
               <Search className="h-4 w-4 text-muted-foreground absolute ml-2 pointer-events-none" />
-              <Input 
-                type="search" 
-                placeholder="Ctrl+K" 
-                className="pl-8 pr-2 py-1 h-8 text-sm rounded-md w-full focus-visible:ring-primary" 
+              <Input
+                type="search"
+                placeholder="Ctrl+K"
+                className="pl-8 pr-2 py-1 h-8 text-sm rounded-md w-full focus-visible:ring-primary"
               />
               <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-foreground">
                 <Settings2 className="h-4 w-4" />
@@ -271,15 +279,15 @@ export default function HomePage() {
           </header>
 
           <div className="flex-grow p-6 space-y-6">
-            <NoteInputForm 
-              onSaveNote={handleSaveNote} 
+            <NoteInputForm
+              onSaveNote={handleSaveNote}
               isLoading={isLoading}
               noteToEdit={noteToEdit}
               onCancelEdit={handleCancelEdit}
-              allTags={allTags} 
-              allNotes={notes} 
+              allTags={allTags}
+              allNotes={notes}
             />
-            
+
             <div className="flex items-center justify-between mt-6 mb-4">
               <h2 className="text-base font-semibold text-muted-foreground">笔记 ({filteredNotes.length})</h2>
               <div className="flex items-center space-x-3">
@@ -287,14 +295,14 @@ export default function HomePage() {
                 <ExportNotesButton notes={notes} />
               </div>
             </div>
-            
-            <NoteList 
-              notes={filteredNotes} 
-              allNotes={notes} 
-              onToggleTag={handleToggleTag} 
+
+            <NoteList
+              notes={filteredNotes}
+              allNotes={notes}
+              onToggleTag={handleToggleTag}
               activeTags={activeTags}
               onEditNote={handleSetNoteToEdit}
-              onDeleteNote={openDeleteConfirmDialog} 
+              onDeleteNote={openDeleteConfirmDialog}
             />
           </div>
         </main>
@@ -319,3 +327,5 @@ export default function HomePage() {
     </>
   );
 }
+
+    

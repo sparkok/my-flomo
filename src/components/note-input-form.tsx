@@ -16,16 +16,16 @@ interface NoteInputFormProps {
   noteToEdit: Note | null;
   onCancelEdit: () => void;
   allTags: string[];
-  allNotes: Note[]; 
+  allNotes: Note[];
 }
 
-export default function NoteInputForm({ 
-  onSaveNote, 
-  isLoading, 
-  noteToEdit, 
+export default function NoteInputForm({
+  onSaveNote,
+  isLoading,
+  noteToEdit,
   onCancelEdit,
   allTags,
-  allNotes 
+  allNotes
 }: NoteInputFormProps) {
   const [content, setContent] = useState("");
   const [imageFile, setImageFile] = useState<File | null>(null);
@@ -47,9 +47,9 @@ export default function NoteInputForm({
     if (noteToEdit) {
       setContent(noteToEdit.content);
       setImagePreview(noteToEdit.imageDataUri || null);
-      setImageFile(null); 
+      setImageFile(null);
       textareaRef.current?.focus();
-      setIsTagSuggestionsOpen(false); 
+      setIsTagSuggestionsOpen(false);
       setIsNoteSuggestionsOpen(false);
     } else {
       setContent("");
@@ -94,7 +94,7 @@ export default function NoteInputForm({
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    setIsTagSuggestionsOpen(false); 
+    setIsTagSuggestionsOpen(false);
     setIsNoteSuggestionsOpen(false);
     if (!content.trim() && !imageFile && !imagePreview) {
         toast({
@@ -139,7 +139,7 @@ export default function NoteInputForm({
     if (textarea) {
       const cursorPos = textarea.selectionStart;
       const textBeforeCursor = newContent.substring(0, cursorPos);
-      
+
       const tagMatch = textBeforeCursor.match(/#([\w\/-]*)$/);
       if (tagMatch && tagMatch[0].length > 0) {
         const query = tagMatch[1];
@@ -148,7 +148,7 @@ export default function NoteInputForm({
           setCurrentTagSuggestions(filtered);
           setTagQueryInfo({ query: tagMatch[0], range: { start: tagMatch.index!, end: cursorPos } });
           setIsTagSuggestionsOpen(true);
-          setIsNoteSuggestionsOpen(false); 
+          setIsNoteSuggestionsOpen(false);
         } else {
           setIsTagSuggestionsOpen(false);
         }
@@ -157,13 +157,16 @@ export default function NoteInputForm({
       }
 
       if (!isTagSuggestionsOpen) {
-        const noteMentionMatch = textBeforeCursor.match(/@([\p{L}\p{N}\s-]*)$/u); 
+        const noteMentionMatch = textBeforeCursor.match(/@([\p{L}\p{N}\s-]*)$/u);
         if (noteMentionMatch) {
           const query = noteMentionMatch[1].toLowerCase();
-          const filteredNotes = allNotes.filter(n => 
-            (noteToEdit ? n.id !== noteToEdit.id : true) &&
+          let filteredNotes = allNotes.filter(n =>
+            (noteToEdit ? n.id !== noteToEdit.id : true) && // Exclude current note if editing
             (n.title.toLowerCase().includes(query) || n.content.toLowerCase().includes(query))
-          ).slice(0, 5); 
+          );
+          // Filter out notes with no effective title
+          filteredNotes = filteredNotes.filter(n => n.title && n.title.trim() !== "").slice(0, 5);
+
 
           if (filteredNotes.length > 0) {
             setCurrentNoteSuggestions(filteredNotes);
@@ -197,7 +200,7 @@ export default function NoteInputForm({
       });
     }
   };
-  
+
   const handleInsertHashtag = () => {
     if (textareaRef.current) {
       const textarea = textareaRef.current;
@@ -206,8 +209,8 @@ export default function NoteInputForm({
       const currentVal = content;
       const newText = currentVal.substring(0, start) + "#" + currentVal.substring(end);
       setContent(newText);
-      
-      setIsTagSuggestionsOpen(false); 
+
+      setIsTagSuggestionsOpen(false);
       setIsNoteSuggestionsOpen(false);
 
       requestAnimationFrame(() => {
@@ -235,14 +238,14 @@ export default function NoteInputForm({
       const linkText = `[[note:${selectedNote.id}]]`;
       const before = content.substring(0, noteQueryRange.start);
       const after = content.substring(noteQueryRange.end);
-      const newText = `${before}${linkText} ${after}`; 
+      const newText = `${before}${linkText} ${after}`;
       setContent(newText);
       setIsNoteSuggestionsOpen(false);
       setNoteQueryRange(null);
 
       requestAnimationFrame(() => {
         textarea.focus();
-        const newCursorPos = noteQueryRange.start + linkText.length + 1; 
+        const newCursorPos = noteQueryRange.start + linkText.length + 1;
         textarea.setSelectionRange(newCursorPos, newCursorPos);
       });
     }
@@ -258,7 +261,7 @@ export default function NoteInputForm({
       setContent(newText);
 
       setIsTagSuggestionsOpen(false);
-      setIsNoteSuggestionsOpen(false); 
+      setIsNoteSuggestionsOpen(false);
 
       requestAnimationFrame(() => {
         textarea.focus();
@@ -268,10 +271,12 @@ export default function NoteInputForm({
         const noteMatch = textBeforeCursor.match(/@([\p{L}\p{N}\s-]*)$/u);
         if (noteMatch) {
           const query = noteMatch[1].toLowerCase();
-          const filtered = allNotes.filter(n => 
+          let filtered = allNotes.filter(n =>
             (noteToEdit ? n.id !== noteToEdit.id : true) &&
             (n.title.toLowerCase().includes(query) || n.content.toLowerCase().includes(query))
-          ).slice(0,5);
+          );
+          filtered = filtered.filter(n => n.title && n.title.trim() !== "").slice(0,5);
+
           if (filtered.length > 0) {
             setCurrentNoteSuggestions(filtered);
             setNoteQueryRange({ start: noteMatch.index!, end: newCursorPos });
@@ -290,11 +295,11 @@ export default function NoteInputForm({
             <PopoverTrigger asChild>
               <div/>
             </PopoverTrigger>
-            <PopoverContent 
+            <PopoverContent
               className="w-[--radix-popover-trigger-width] p-0 max-h-60 overflow-auto shadow-lg"
               side="bottom"
               align="start"
-              onOpenAutoFocus={(e) => e.preventDefault()} 
+              onOpenAutoFocus={(e) => e.preventDefault()}
               onCloseAutoFocus={(e) => e.preventDefault()}
               style={{
                 width: textareaRef.current ? `${textareaRef.current.offsetWidth}px` : 'auto',
@@ -317,7 +322,7 @@ export default function NoteInputForm({
             <PopoverTrigger asChild>
               <div/>
             </PopoverTrigger>
-            <PopoverContent 
+            <PopoverContent
               className="w-[--radix-popover-trigger-width] p-0 max-h-60 overflow-auto shadow-lg"
               side="bottom"
               align="start"
@@ -340,7 +345,7 @@ export default function NoteInputForm({
                     </span>
                     <br/>
                     <span className="text-xs text-muted-foreground">
-                      {note.title ? note.content.substring(0, 50) + (note.content.length > 50 ? '...' : '') : (note.content.length > 50 ? note.content.substring(0, 50) + '...' : note.content || 'No content')}
+                       {note.title ? note.content.substring(0, 50) + (note.content.length > 50 ? '...' : '') : (note.content.length > 50 ? note.content.substring(0, 50) + '...' : note.content || 'No content')}
                     </span>
                   </div>
                 </Button>
@@ -371,7 +376,7 @@ export default function NoteInputForm({
             variant="ghost"
             size="icon"
             className="absolute top-2 right-2 text-muted-foreground hover:text-primary h-8 w-8"
-            onClick={() => console.log("O logo clicked")} 
+            onClick={() => console.log("O logo clicked")}
             disabled={isLoading}
             aria-label="Open AI options"
           >
@@ -458,3 +463,5 @@ export default function NoteInputForm({
     </div>
   );
 }
+
+    

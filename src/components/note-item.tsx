@@ -1,64 +1,72 @@
 
 import type { Note } from "@/lib/types";
-// Removed Badge import as it's no longer used here if we remove tag display
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
-import { MoreHorizontal, Pencil, Trash2 } from "lucide-react"; // Removed Tag icon
+import { MoreHorizontal, Pencil, Trash2 } from "lucide-react";
 import { format } from 'date-fns';
 import Image from 'next/image';
 import React from "react";
 
 interface NoteItemProps {
   note: Note;
-  allNotes: Note[]; 
-  onToggleTag: (tag: string) => void; // This prop might be kept if other interactions depend on it, but not for displaying tags here
-  activeTags: Set<string>; // Similar to onToggleTag
+  allNotes: Note[];
+  onToggleTag: (tag: string) => void;
+  activeTags: Set<string>;
   onEditNote: (noteId: string) => void;
   onDeleteNote: (noteId: string) => void;
 }
 
-const renderContentWithLinks = (content: string, allNotes: Note[]): React.ReactNode[] => {
+const renderContentWithLinksAndTags = (content: string, allNotes: Note[]): React.ReactNode[] => {
   const parts: React.ReactNode[] = [];
+  // Regex to capture [[note:ID]] links OR #tags
+  const regex = /(\[\[note:([^\]]+)\]\])|(#([^#\s\/]+(?:\/[^#\s\/]+)*))/g;
   let lastIndex = 0;
-  const regex = /\[\[note:([^\]]+)\]\]/g;
   let match;
+  let keyCounter = 0; // For unique keys
 
   while ((match = regex.exec(content)) !== null) {
-    const noteId = match[1];
-    const linkedNote = allNotes.find(n => n.id === noteId);
-    
+    // Text before the current match
     if (match.index > lastIndex) {
       parts.push(content.substring(lastIndex, match.index));
     }
 
-    if (linkedNote) {
-      let displayName = linkedNote.title; 
-      if (!displayName) { 
-        displayName = linkedNote.content.substring(0, 30);
-        if (linkedNote.content.length > 30) {
-          displayName += "...";
+    if (match[1]) { // It's a note link: match[1] is [[note:ID]], match[2] is ID
+      const noteId = match[2];
+      const linkedNote = allNotes.find(n => n.id === noteId);
+      let displayName = linkedNote?.title || "";
+
+      if (linkedNote) {
+        if (!displayName.trim()) {
+          displayName = linkedNote.content.substring(0, 30);
+          if (linkedNote.content.length > 30) {
+            displayName += "...";
+          }
         }
+        if (!displayName.trim() && linkedNote.imageDataUri) {
+          displayName = "Image Note";
+        } else if (!displayName.trim()) {
+          displayName = `Note ID: ${noteId.substring(0,6)}...`;
+        }
+      } else {
+        displayName = `Note (ID: ${noteId.substring(0,6)}...) [not found]`;
       }
-      if (!displayName.trim() && linkedNote.imageDataUri) {
-        displayName = "Image Note";
-      } else if (!displayName.trim()) {
-        displayName = "Untitled Note";
-      }
+
       parts.push(
-        <span key={`${match.index}-${noteId}`} className="font-medium text-primary cursor-pointer hover:underline">
+        <span key={`link-${keyCounter++}-${noteId}`} className="font-medium text-primary cursor-pointer hover:underline">
           @{displayName}
         </span>
       );
-    } else {
+    } else if (match[3]) { // It's a tag: match[3] is #fulltag, match[4] is tagname
       parts.push(
-        <span key={`${match.index}-${noteId}`} className="text-muted-foreground italic">
-          @Note (ID: {noteId.substring(0,8)}...) [not found]
+        <span key={`tag-${keyCounter++}-${match[4]}`} className="text-primary">
+          {match[3]}
         </span>
       );
     }
     lastIndex = regex.lastIndex;
   }
 
+  // Remaining text after the last match
   if (lastIndex < content.length) {
     parts.push(content.substring(lastIndex));
   }
@@ -68,7 +76,6 @@ const renderContentWithLinks = (content: string, allNotes: Note[]): React.ReactN
 
 
 export default function NoteItem({ note, allNotes, onEditNote, onDeleteNote }: NoteItemProps) {
-  // activeTags and onToggleTag are no longer directly used in this component for rendering badges
   return (
     <div className="bg-card p-4 rounded-md border border-border hover:shadow-sm transition-shadow duration-200 ease-in-out animate-fade-in">
       <div className="flex justify-between items-start mb-2">
@@ -97,45 +104,22 @@ export default function NoteItem({ note, allNotes, onEditNote, onDeleteNote }: N
 
       {note.imageDataUri && (
         <div className="mb-3 rounded-md overflow-hidden border border-muted">
-          <Image 
-            src={note.imageDataUri} 
-            alt="Note image" 
+          <Image
+            src={note.imageDataUri}
+            alt="Note image"
             width={600}
             height={400}
             className="w-full h-auto max-h-72 object-contain rounded-sm"
-            data-ai-hint="note illustration" 
+            data-ai-hint="note illustration"
           />
         </div>
       )}
 
       <p className="text-foreground whitespace-pre-wrap text-sm leading-relaxed mb-3">
-        {renderContentWithLinks(note.content, allNotes)}
+        {renderContentWithLinksAndTags(note.content, allNotes)}
       </p>
-
-      {/* Removed the tag display section that was here */}
-      {/* 
-        {note.tags && note.tags.length > 0 && (
-          <div className="flex flex-wrap gap-1.5 items-center">
-            {note.tags.map(tag => (
-              <Badge
-                key={tag}
-                variant={activeTags.has(tag) ? "default" : "secondary"}
-                onClick={() => onToggleTag(tag)}
-                className={`cursor-pointer transition-all duration-150 ease-in-out hover:opacity-80
-                  ${activeTags.has(tag) ? 'bg-accent/80 text-accent-foreground hover:bg-accent text-xs' : 'bg-muted hover:bg-secondary/70 text-muted-foreground hover:text-secondary-foreground text-xs'}
-                  px-2 py-0.5 font-normal rounded-sm`}
-                role="button"
-                tabIndex={0}
-                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onToggleTag(tag); }}
-                aria-pressed={activeTags.has(tag)}
-                aria-label={`Tag: ${tag}`}
-              >
-               #{tag}
-              </Badge>
-            ))}
-          </div>
-        )}
-      */}
     </div>
   );
 }
+
+    
