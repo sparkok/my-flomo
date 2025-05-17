@@ -9,7 +9,6 @@ import TagFilter from "@/components/tag-filter";
 import ExportNotesButton from "@/components/export-notes-button"; 
 import ActivityHeatmap from "@/components/ActivityHeatmap"; 
 import { useToast } from "@/hooks/use-toast";
-// Removed: import { generateTags } from "@/ai/flows/generate-tags"; 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
@@ -29,7 +28,6 @@ import {
   Search, 
   Settings2, 
   BookCopy, 
-  MessageSquare, 
   CalendarCheck,
   Package,
   ShieldAlert,
@@ -140,7 +138,6 @@ export default function HomePage() {
 
     setIsLoading(false);
     setNoteToEdit(null);
-    // If not editing (i.e., creating a new note), clear the form - NoteInputForm handles this itself via useEffect on noteToEdit
   }, [notes, toast]);
 
   const handleSetNoteToEdit = useCallback((noteId: string) => {
@@ -231,10 +228,6 @@ export default function HomePage() {
           </Button>
           
           <nav className="flex flex-col space-y-1 text-sm">
-            <Button variant="ghost" className="w-full justify-start text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground px-3">
-              <MessageSquare className="mr-2 h-4 w-4" />
-              微信输入
-            </Button>
             <Button variant="ghost" className="w-full justify-start text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground px-3">
               <CalendarCheck className="mr-2 h-4 w-4" />
               每日回顾
