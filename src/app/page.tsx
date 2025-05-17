@@ -6,8 +6,8 @@ import { useState, useEffect, useMemo, useCallback } from "react";
 import NoteInputForm from "@/components/note-input-form";
 import NoteList from "@/components/note-list";
 import TagFilter from "@/components/tag-filter";
-import ExportNotesButton from "@/components/export-notes-button"; // Re-styled as link later
-import ActivityHeatmap from "@/components/ActivityHeatmap"; // New component
+import ExportNotesButton from "@/components/export-notes-button"; 
+import ActivityHeatmap from "@/components/ActivityHeatmap"; 
 import { useToast } from "@/hooks/use-toast";
 import { generateTags } from "@/ai/flows/generate-tags";
 import { Button } from "@/components/ui/button";
@@ -15,16 +15,26 @@ import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { format } from 'date-fns';
 import { 
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { 
   RefreshCw, 
   Search, 
-  Settings2, // Changed from SlidersHorizontal
+  Settings2, 
   BookCopy, 
   MessageSquare, 
   CalendarCheck,
   Package,
   ShieldAlert,
   TrendingUp,
-  Folder // Default for special tags
+  Folder 
 } from "lucide-react";
 
 export default function HomePage() {
@@ -34,6 +44,8 @@ export default function HomePage() {
   const [noteToEdit, setNoteToEdit] = useState<Note | null>(null);
   const { toast } = useToast();
   const [currentDate, setCurrentDate] = useState<Date | null>(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [noteIdToDelete, setNoteIdToDelete] = useState<string | null>(null);
 
 
   useEffect(() => {
@@ -59,7 +71,7 @@ export default function HomePage() {
 
   const extractTagsFromContent = (content: string): string[] => {
     const extracted: string[] = [];
-    const regex = /#([^#\s\/]+(?:\/[^#\s\/]+)*)/g; // Supports wider characters for hierarchical tags
+    const regex = /#([^#\s\/]+(?:\/[^#\s\/]+)*)/g; 
     let match;
     while ((match = regex.exec(content)) !== null) {
       extracted.push(match[1]);
@@ -176,10 +188,26 @@ export default function HomePage() {
     });
   };
 
+  const openDeleteConfirmDialog = (noteId: string) => {
+    setNoteIdToDelete(noteId);
+    setShowDeleteConfirm(true);
+  };
+
+  const confirmDeleteNote = () => {
+    if (noteIdToDelete) {
+      setNotes(prevNotes => prevNotes.filter(note => note.id !== noteIdToDelete));
+      toast({
+        title: "Note Deleted",
+        description: "Your note has been successfully deleted.",
+      });
+    }
+    setNoteIdToDelete(null);
+    setShowDeleteConfirm(false);
+  };
+
   const allTags = useMemo(() => {
     const tagsSet = new Set<string>();
     notes.forEach(note => note.tags.forEach(tag => tagsSet.add(tag)));
-    // Add special tags if they are not already present from notes
     ["产品", "故障检测", "成长"].forEach(st => tagsSet.add(st));
     return Array.from(tagsSet).sort();
   }, [notes]);
@@ -201,103 +229,119 @@ export default function HomePage() {
 
 
   return (
-    <div className="flex h-screen bg-background text-foreground font-sans overflow-hidden">
-      {/* Sidebar */}
-      <aside className="w-64 bg-sidebar-background p-4 flex flex-col space-y-4 border-r border-sidebar-border fixed top-0 left-0 h-full">
-        <div className="flex items-center space-x-2">
-          <div className="bg-primary text-primary-foreground p-1.5 rounded-md text-xs font-bold">PRO</div>
-          <h1 className="text-xl font-semibold text-foreground">sparkok</h1>
-        </div>
-
-        <div className="flex justify-around text-center text-xs text-muted-foreground pt-2">
-          <div><p className="text-lg font-medium text-foreground">728</p><p>笔记</p></div>
-          <div><p className="text-lg font-medium text-foreground">347</p><p>标签</p></div>
-          <div><p className="text-lg font-medium text-foreground">1183</p><p>天</p></div>
-        </div>
-        
-        <ActivityHeatmap notes={notes} currentDate={currentDate} />
-
-        <Button variant="default" className="w-full bg-primary hover:bg-accent text-primary-foreground justify-start px-3">
-          <BookCopy className="mr-2 h-4 w-4" />
-          全部笔记
-        </Button>
-        
-        <nav className="flex flex-col space-y-1 text-sm">
-          <Button variant="ghost" className="w-full justify-start text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground px-3">
-            <MessageSquare className="mr-2 h-4 w-4" />
-            微信输入
-          </Button>
-          <Button variant="ghost" className="w-full justify-start text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground px-3">
-            <CalendarCheck className="mr-2 h-4 w-4" />
-            每日回顾
-          </Button>
-        </nav>
-        
-        <Separator className="my-2 bg-sidebar-border"/>
-
-        <div className="flex-grow overflow-y-auto pr-1 -mr-2">
-          <h2 className="text-xs font-semibold text-muted-foreground mb-2 px-2 uppercase">全部标签</h2>
-          <TagFilter
-            allTags={allTags}
-            activeTags={activeTags}
-            onToggleTag={handleToggleTag}
-            specialTagsConfig={specialTagsConfig}
-          />
-        </div>
-
-      </aside>
-
-      {/* Main Content */}
-      <main className="flex-1 flex flex-col ml-64 overflow-y-auto"> {/* ml-64 to offset sidebar */}
-        {/* Top Bar */}
-        <header className="sticky top-0 z-10 bg-background/80 backdrop-blur-md border-b border-border px-6 py-3 flex items-center justify-between">
-          <div className="flex items-center space-x-2 text-sm text-muted-foreground">
-            {currentDate !== null ? <span>{format(currentDate, "yyyy-MM-dd")}</span> : <span>Loading date...</span>}
-            <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-foreground">
-              <RefreshCw className="h-4 w-4" />
-            </Button>
+    <>
+      <div className="flex h-screen bg-background text-foreground font-sans overflow-hidden">
+        {/* Sidebar */}
+        <aside className="w-64 bg-sidebar-background p-4 flex flex-col space-y-4 border-r border-sidebar-border fixed top-0 left-0 h-full">
+          <div className="flex items-center space-x-2">
+            <div className="bg-primary text-primary-foreground p-1.5 rounded-md text-xs font-bold">PRO</div>
+            <h1 className="text-xl font-semibold text-foreground">sparkok</h1>
           </div>
-          <div className="flex items-center space-x-2 w-1/3">
-            <Search className="h-4 w-4 text-muted-foreground absolute ml-2 pointer-events-none" />
-            <Input 
-              type="search" 
-              placeholder="Ctrl+K" 
-              className="pl-8 pr-2 py-1 h-8 text-sm rounded-md w-full focus-visible:ring-primary" 
+
+          <div className="flex justify-around text-center text-xs text-muted-foreground pt-2">
+            <div><p className="text-lg font-medium text-foreground">728</p><p>笔记</p></div>
+            <div><p className="text-lg font-medium text-foreground">347</p><p>标签</p></div>
+            <div><p className="text-lg font-medium text-foreground">1183</p><p>天</p></div>
+          </div>
+          
+          <ActivityHeatmap notes={notes} currentDate={currentDate} />
+
+          <Button variant="default" className="w-full bg-primary hover:bg-accent text-primary-foreground justify-start px-3">
+            <BookCopy className="mr-2 h-4 w-4" />
+            全部笔记
+          </Button>
+          
+          <nav className="flex flex-col space-y-1 text-sm">
+            <Button variant="ghost" className="w-full justify-start text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground px-3">
+              <MessageSquare className="mr-2 h-4 w-4" />
+              微信输入
+            </Button>
+            <Button variant="ghost" className="w-full justify-start text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground px-3">
+              <CalendarCheck className="mr-2 h-4 w-4" />
+              每日回顾
+            </Button>
+          </nav>
+          
+          <Separator className="my-2 bg-sidebar-border"/>
+
+          <div className="flex-grow overflow-y-auto pr-1 -mr-2">
+            <h2 className="text-xs font-semibold text-muted-foreground mb-2 px-2 uppercase">全部标签</h2>
+            <TagFilter
+              allTags={allTags}
+              activeTags={activeTags}
+              onToggleTag={handleToggleTag}
+              specialTagsConfig={specialTagsConfig}
             />
-            <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-foreground">
-              <Settings2 className="h-4 w-4" />
-            </Button>
           </div>
-        </header>
 
-        {/* Note Input and List Section */}
-        <div className="flex-grow p-6 space-y-6">
-          <NoteInputForm 
-            onSaveNote={handleSaveNote} 
-            isLoading={isLoading}
-            noteToEdit={noteToEdit}
-            onCancelEdit={handleCancelEdit}
-            allTags={allTags} // Pass allTags to NoteInputForm
-          />
-          
-          <div className="flex items-center justify-between mt-6 mb-4">
-            <h2 className="text-base font-semibold text-muted-foreground">笔记 ({filteredNotes.length})</h2>
-            <div className="flex items-center space-x-3">
-              <button className="text-xs text-muted-foreground hover:text-primary">筛选</button>
-              <ExportNotesButton notes={notes} />
+        </aside>
+
+        {/* Main Content */}
+        <main className="flex-1 flex flex-col ml-64 overflow-y-auto">
+          <header className="sticky top-0 z-10 bg-background/80 backdrop-blur-md border-b border-border px-6 py-3 flex items-center justify-between">
+            <div className="flex items-center space-x-2 text-sm text-muted-foreground">
+              {currentDate !== null ? <span>{format(currentDate, "yyyy-MM-dd")}</span> : <span>Loading date...</span>}
+              <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-foreground">
+                <RefreshCw className="h-4 w-4" />
+              </Button>
             </div>
+            <div className="flex items-center space-x-2 w-1/3">
+              <Search className="h-4 w-4 text-muted-foreground absolute ml-2 pointer-events-none" />
+              <Input 
+                type="search" 
+                placeholder="Ctrl+K" 
+                className="pl-8 pr-2 py-1 h-8 text-sm rounded-md w-full focus-visible:ring-primary" 
+              />
+              <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-foreground">
+                <Settings2 className="h-4 w-4" />
+              </Button>
+            </div>
+          </header>
+
+          <div className="flex-grow p-6 space-y-6">
+            <NoteInputForm 
+              onSaveNote={handleSaveNote} 
+              isLoading={isLoading}
+              noteToEdit={noteToEdit}
+              onCancelEdit={handleCancelEdit}
+              allTags={allTags} 
+            />
+            
+            <div className="flex items-center justify-between mt-6 mb-4">
+              <h2 className="text-base font-semibold text-muted-foreground">笔记 ({filteredNotes.length})</h2>
+              <div className="flex items-center space-x-3">
+                <button className="text-xs text-muted-foreground hover:text-primary">筛选</button>
+                <ExportNotesButton notes={notes} />
+              </div>
+            </div>
+            
+            <NoteList 
+              notes={filteredNotes} 
+              onToggleTag={handleToggleTag} 
+              activeTags={activeTags}
+              onEditNote={handleSetNoteToEdit}
+              onDeleteNote={openDeleteConfirmDialog} // Pass handler to open dialog
+            />
           </div>
-          
-          <NoteList 
-            notes={filteredNotes} 
-            onToggleTag={handleToggleTag} 
-            activeTags={activeTags}
-            onEditNote={handleSetNoteToEdit}
-          />
-        </div>
-      </main>
-    </div>
+        </main>
+      </div>
+
+      <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you sure you want to delete this note?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. This will permanently delete your note.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setNoteIdToDelete(null)}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDeleteNote} className="bg-destructive hover:bg-destructive/90 text-destructive-foreground">
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 }
-
-    

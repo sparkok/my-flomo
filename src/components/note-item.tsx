@@ -1,8 +1,8 @@
 import type { Note } from "@/lib/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { Tag, MoreHorizontal, Pencil } from "lucide-react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
+import { Tag, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
 import { format } from 'date-fns';
 import Image from 'next/image';
 
@@ -11,9 +11,10 @@ interface NoteItemProps {
   onToggleTag: (tag: string) => void;
   activeTags: Set<string>;
   onEditNote: (noteId: string) => void;
+  onDeleteNote: (noteId: string) => void; // New prop
 }
 
-export default function NoteItem({ note, onToggleTag, activeTags, onEditNote }: NoteItemProps) {
+export default function NoteItem({ note, onToggleTag, activeTags, onEditNote, onDeleteNote }: NoteItemProps) {
   return (
     <div className="bg-card p-4 rounded-md border border-border hover:shadow-sm transition-shadow duration-200 ease-in-out animate-fade-in">
       <div className="flex justify-between items-start mb-2">
@@ -31,7 +32,11 @@ export default function NoteItem({ note, onToggleTag, activeTags, onEditNote }: 
               <Pencil className="mr-2 h-3.5 w-3.5 text-muted-foreground" />
               Edit
             </DropdownMenuItem>
-            {/* Add other actions like Delete here */}
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={() => onDeleteNote(note.id)} className="text-destructive focus:text-destructive focus:bg-destructive/10">
+              <Trash2 className="mr-2 h-3.5 w-3.5" />
+              Delete
+            </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
@@ -53,7 +58,6 @@ export default function NoteItem({ note, onToggleTag, activeTags, onEditNote }: 
 
       {note.tags && note.tags.length > 0 && (
         <div className="flex flex-wrap gap-1.5 items-center">
-          {/* <Tag className="h-3.5 w-3.5 text-muted-foreground mr-0.5" /> */}
           {note.tags.map(tag => (
             <Badge
               key={tag}

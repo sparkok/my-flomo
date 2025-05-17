@@ -1,15 +1,15 @@
 import type { Note } from "@/lib/types";
 import NoteItem from "./note-item";
-import { ScrollArea } from "@/components/ui/scroll-area"; // Keep for long lists
 
 interface NoteListProps {
   notes: Note[];
   onToggleTag: (tag: string) => void;
   activeTags: Set<string>;
   onEditNote: (noteId: string) => void;
+  onDeleteNote: (noteId: string) => void; // New prop
 }
 
-export default function NoteList({ notes, onToggleTag, activeTags, onEditNote }: NoteListProps) {
+export default function NoteList({ notes, onToggleTag, activeTags, onEditNote, onDeleteNote }: NoteListProps) {
   if (notes.length === 0) {
     return (
       <div className="text-center py-10 text-muted-foreground bg-card border border-dashed border-border rounded-lg">
@@ -25,12 +25,16 @@ export default function NoteList({ notes, onToggleTag, activeTags, onEditNote }:
   }
 
   return (
-    // The main page will handle scrolling for the entire main content area
-    // So ScrollArea might not be needed here if the parent div scrolls.
-    // For now, keeping it simple as a div.
     <div className="space-y-4">
       {notes.map(note => (
-        <NoteItem key={note.id} note={note} onToggleTag={onToggleTag} activeTags={activeTags} onEditNote={onEditNote} />
+        <NoteItem 
+          key={note.id} 
+          note={note} 
+          onToggleTag={onToggleTag} 
+          activeTags={activeTags} 
+          onEditNote={onEditNote}
+          onDeleteNote={onDeleteNote} // Pass down the handler
+        />
       ))}
     </div>
   );
