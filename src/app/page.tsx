@@ -59,7 +59,7 @@ export default function HomePage() {
 
   const extractTagsFromContent = (content: string): string[] => {
     const extracted: string[] = [];
-    const regex = /#([^#\s\/]+(?:\/[^#\s\/]+)*)/g;
+    const regex = /#([^#\s\/]+(?:\/[^#\s\/]+)*)/g; // Supports wider characters for hierarchical tags
     let match;
     while ((match = regex.exec(content)) !== null) {
       extracted.push(match[1]);
@@ -215,7 +215,7 @@ export default function HomePage() {
           <div><p className="text-lg font-medium text-foreground">1183</p><p>天</p></div>
         </div>
         
-        <ActivityHeatmap />
+        <ActivityHeatmap notes={notes} currentDate={currentDate} />
 
         <Button variant="default" className="w-full bg-primary hover:bg-accent text-primary-foreground justify-start px-3">
           <BookCopy className="mr-2 h-4 w-4" />
