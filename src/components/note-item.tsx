@@ -3,6 +3,7 @@ import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge";
 import { CalendarDays, Tag } from "lucide-react";
 import { format } from 'date-fns';
+import Image from 'next/image';
 
 interface NoteItemProps {
   note: Note;
@@ -20,6 +21,18 @@ export default function NoteItem({ note, onToggleTag, activeTags }: NoteItemProp
         </div>
       </CardHeader>
       <CardContent className="py-4 px-5">
+        {note.imageDataUri && (
+          <div className="mb-4 rounded-md overflow-hidden border border-muted shadow-sm">
+            <Image 
+              src={note.imageDataUri} 
+              alt="Note image" 
+              width={600} // Adjust as needed
+              height={400} // Adjust as needed
+              className="w-full h-auto max-h-96 object-contain rounded-md"
+              data-ai-hint="note illustration" 
+            />
+          </div>
+        )}
         <p className="text-foreground whitespace-pre-wrap text-base leading-relaxed">{note.content}</p>
       </CardContent>
       {note.tags && note.tags.length > 0 && (

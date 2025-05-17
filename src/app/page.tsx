@@ -42,20 +42,23 @@ export default function HomePage() {
 
   const extractTagsFromContent = (content: string): string[] => {
     const extracted: string[] = [];
-    // Updated regex to support a wider range of characters, including non-ASCII for tags like #书籍/科技
-    const regex = /#([^#\s/]+(?:\/[^#\s/]+)*)/g;
+    // Corrected regex:
+    // - \s for whitespace (was \\s)
+    // - \/ for literal slash (was \\/ or / in character class)
+    // - Ensures segments don't contain #, whitespace, or /
+    const regex = /#([^#\s\/]+(?:\/[^#\s\/]+)*)/g;
     let match;
     while ((match = regex.exec(content)) !== null) {
       extracted.push(match[1]);
     }
-    return Array.from(new Set(extracted)); // Return unique tags
+    return Array.from(new Set(extracted));
   };
 
-  const handleAddNote = async (content: string) => {
-    if (!content.trim()) {
+  const handleAddNote = async (content: string, imageDataUri?: string) => {
+    if (!content.trim() && !imageDataUri) {
       toast({
         title: "Empty Note",
-        description: "Cannot save an empty note.",
+        description: "Cannot save an empty note without content or an image.",
         variant: "destructive",
       });
       return;
@@ -65,6 +68,8 @@ export default function HomePage() {
     const manuallyExtractedTags = extractTagsFromContent(content);
 
     try {
+      // For now, AI tagging will only use text content.
+      // Future enhancement: pass imageDataUri to AI for image-based tagging.
       const { tags: aiTags } = await generateTags({ text: content });
       const combinedTags = Array.from(
         new Set([...manuallyExtractedTags, ...(aiTags || [])])
@@ -75,11 +80,12 @@ export default function HomePage() {
         content,
         createdAt: new Date(),
         tags: combinedTags,
+        imageDataUri,
       };
       setNotes((prevNotes) => [newNote, ...prevNotes]);
       toast({
         title: "Note Saved",
-        description: "Your note has been successfully saved and tagged.",
+        description: "Your note has been successfully saved.",
       });
     } catch (error) {
       console.error("Error generating tags or saving note:", error);
@@ -89,6 +95,7 @@ export default function HomePage() {
         content,
         createdAt: new Date(),
         tags: fallbackTags,
+        imageDataUri,
       };
       setNotes((prevNotes) => [newNoteWithoutAITags, ...prevNotes]);
       toast({
@@ -140,7 +147,7 @@ export default function HomePage() {
       <main className="flex-grow container mx-auto px-4 py-6">
         <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
           <aside className="md:col-span-4 lg:col-span-3 space-y-6">
-            <Card className="shadow-lg sticky top-[calc(4rem+24px)]"> {/* Adjust top based on header height */}
+            <Card className="shadow-lg sticky top-[calc(4rem+24px)]"> {/* Adjust top value based on header height + desired gap */}
               <CardHeader>
                 <CardTitle className="text-xl">Filter by Tags</CardTitle>
               </CardHeader>
