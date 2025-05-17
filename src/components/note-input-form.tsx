@@ -15,7 +15,8 @@ interface NoteInputFormProps {
   isLoading: boolean;
   noteToEdit: Note | null;
   onCancelEdit: () => void;
-  allTags: string[]; // Added prop for all available tags
+  allTags: string[];
+  allNotes: Note[]; // Added prop for all available notes
 }
 
 export default function NoteInputForm({ 
@@ -23,7 +24,8 @@ export default function NoteInputForm({
   isLoading, 
   noteToEdit, 
   onCancelEdit,
-  allTags 
+  allTags,
+  allNotes // Destructure new prop
 }: NoteInputFormProps) {
   const [content, setContent] = useState("");
   const [imageFile, setImageFile] = useState<File | null>(null);
@@ -32,9 +34,13 @@ export default function NoteInputForm({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const { toast } = useToast();
 
-  const [isSuggestionsOpen, setIsSuggestionsOpen] = useState(false);
-  const [currentSuggestions, setCurrentSuggestions] = useState<string[]>([]);
+  const [isTagSuggestionsOpen, setIsTagSuggestionsOpen] = useState(false);
+  const [currentTagSuggestions, setCurrentTagSuggestions] = useState<string[]>([]);
   const [tagQueryInfo, setTagQueryInfo] = useState<{ query: string, range: { start: number, end: number } } | null>(null);
+
+  const [isNoteSuggestionsOpen, setIsNoteSuggestionsOpen] = useState(false);
+  const [currentNoteSuggestions, setCurrentNoteSuggestions] = useState<Note[]>([]);
+  const [noteQueryRange, setNoteQueryRange] = useState<{ start: number, end: number } | null>(null);
 
 
   useEffect(() => {
@@ -43,7 +49,8 @@ export default function NoteInputForm({
       setImagePreview(noteToEdit.imageDataUri || null);
       setImageFile(null); 
       textareaRef.current?.focus();
-      setIsSuggestionsOpen(false); // Close suggestions when starting an edit
+      setIsTagSuggestionsOpen(false); 
+      setIsNoteSuggestionsOpen(false);
     } else {
       setContent("");
       setImagePreview(null);
@@ -87,7 +94,8 @@ export default function NoteInputForm({
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    setIsSuggestionsOpen(false); // Close suggestions on submit
+    setIsTagSuggestionsOpen(false); 
+    setIsNoteSuggestionsOpen(false);
     if (!content.trim() && !imageFile && !imagePreview) {
         toast({
             title: "Empty Note",
@@ -118,7 +126,8 @@ export default function NoteInputForm({
   };
 
   const handleCancel = () => {
-    setIsSuggestionsOpen(false); // Close suggestions on cancel
+    setIsTagSuggestionsOpen(false);
+    setIsNoteSuggestionsOpen(false);
     onCancelEdit();
   };
 
@@ -130,21 +139,46 @@ export default function NoteInputForm({
     if (textarea) {
       const cursorPos = textarea.selectionStart;
       const textBeforeCursor = newContent.substring(0, cursorPos);
-      const tagMatch = textBeforeCursor.match(/#([\w\/-]*)$/); // Regex to find # followed by word characters, /, -
-
-      if (tagMatch && tagMatch[0].length > 0) { // Ensure there's at least '#'
-        const query = tagMatch[1]; // This is the part after #
+      
+      // Tag suggestion logic
+      const tagMatch = textBeforeCursor.match(/#([\w\/-]*)$/);
+      if (tagMatch && tagMatch[0].length > 0) {
+        const query = tagMatch[1];
         const filtered = allTags.filter(t => t.toLowerCase().startsWith(query.toLowerCase()));
-        
         if (filtered.length > 0) {
-          setCurrentSuggestions(filtered);
+          setCurrentTagSuggestions(filtered);
           setTagQueryInfo({ query: tagMatch[0], range: { start: tagMatch.index!, end: cursorPos } });
-          setIsSuggestionsOpen(true);
+          setIsTagSuggestionsOpen(true);
+          setIsNoteSuggestionsOpen(false); // Close note suggestions if tag suggestions are open
         } else {
-          setIsSuggestionsOpen(false);
+          setIsTagSuggestionsOpen(false);
         }
       } else {
-        setIsSuggestionsOpen(false);
+        setIsTagSuggestionsOpen(false);
+      }
+
+      // Note suggestion logic (only if tag suggestions are not active)
+      if (!isTagSuggestionsOpen) {
+        const noteMentionMatch = textBeforeCursor.match(/@([\p{L}\p{N}\s-]*)$/u); // Unicode letters, numbers, spaces, hyphens
+        if (noteMentionMatch) {
+          const query = noteMentionMatch[1].toLowerCase();
+          // Filter notes where the content includes the query (case-insensitive)
+          // and the note is not the one currently being edited (if any)
+          const filteredNotes = allNotes.filter(n => 
+            (noteToEdit ? n.id !== noteToEdit.id : true) &&
+            n.content.toLowerCase().includes(query)
+          ).slice(0, 5); // Limit to 5 suggestions
+
+          if (filteredNotes.length > 0) {
+            setCurrentNoteSuggestions(filteredNotes);
+            setNoteQueryRange({ start: noteMentionMatch.index!, end: cursorPos });
+            setIsNoteSuggestionsOpen(true);
+          } else {
+            setIsNoteSuggestionsOpen(false);
+          }
+        } else {
+          setIsNoteSuggestionsOpen(false);
+        }
       }
     }
   };
@@ -154,16 +188,12 @@ export default function NoteInputForm({
     if (textarea && tagQueryInfo) {
       const { range } = tagQueryInfo;
       const currentVal = content;
-      
       const before = currentVal.substring(0, range.start);
       const after = currentVal.substring(range.end);
-      
-      const newText = `${before}#${tag} ${after}`; // Add #, selected tag, and a space
+      const newText = `${before}#${tag} ${after}`;
       setContent(newText);
-      setIsSuggestionsOpen(false);
+      setIsTagSuggestionsOpen(false);
       setTagQueryInfo(null);
-
-      // Focus and set cursor after the inserted tag + space
       requestAnimationFrame(() => {
         textarea.focus();
         const newCursorPos = range.start + 1 + tag.length + 1;
@@ -177,93 +207,184 @@ export default function NoteInputForm({
       const textarea = textareaRef.current;
       const start = textarea.selectionStart;
       const end = textarea.selectionEnd;
-      const newText = content.substring(0, start) + "#" + content.substring(end);
+      const currentVal = content;
+      const newText = currentVal.substring(0, start) + "#" + currentVal.substring(end);
       setContent(newText);
-      setIsSuggestionsOpen(false); // Close suggestions if open
+      
+      setIsTagSuggestionsOpen(false); 
+      setIsNoteSuggestionsOpen(false);
 
       requestAnimationFrame(() => {
         textarea.focus();
-        textarea.setSelectionRange(start + 1, start + 1);
-         // Manually trigger suggestion update after inserting #
-        const textBeforeCursor = newText.substring(0, start + 1);
+        const newCursorPos = start + 1;
+        textarea.setSelectionRange(newCursorPos, newCursorPos);
+        // Manually trigger suggestion update for tags
+        const textBeforeCursor = newText.substring(0, newCursorPos);
         const tagMatch = textBeforeCursor.match(/#([\w\/-]*)$/);
         if (tagMatch) {
             const query = tagMatch[1];
             const filtered = allTags.filter(t => t.toLowerCase().startsWith(query.toLowerCase()));
             if (filtered.length > 0) {
-                setCurrentSuggestions(filtered);
-                setTagQueryInfo({ query: tagMatch[0], range: { start: tagMatch.index!, end: start + 1 } });
-                setIsSuggestionsOpen(true);
+                setCurrentTagSuggestions(filtered);
+                setTagQueryInfo({ query: tagMatch[0], range: { start: tagMatch.index!, end: newCursorPos } });
+                setIsTagSuggestionsOpen(true);
             }
         }
       });
     }
   };
 
+  const handleSelectNoteSuggestion = (selectedNote: Note) => {
+    const textarea = textareaRef.current;
+    if (textarea && noteQueryRange) {
+      const linkText = `[[note:${selectedNote.id}]]`;
+      const before = content.substring(0, noteQueryRange.start);
+      const after = content.substring(noteQueryRange.end);
+      const newText = `${before}${linkText} ${after}`; // Add a space after the link
+      setContent(newText);
+      setIsNoteSuggestionsOpen(false);
+      setNoteQueryRange(null);
+
+      requestAnimationFrame(() => {
+        textarea.focus();
+        const newCursorPos = noteQueryRange.start + linkText.length + 1; // +1 for the space
+        textarea.setSelectionRange(newCursorPos, newCursorPos);
+      });
+    }
+  };
+
+  const handleInsertAtSymbol = () => {
+    if (textareaRef.current) {
+      const textarea = textareaRef.current;
+      const start = textarea.selectionStart;
+      const end = textarea.selectionEnd;
+      const currentVal = content;
+      const newText = currentVal.substring(0, start) + "@" + currentVal.substring(end);
+      setContent(newText);
+
+      setIsTagSuggestionsOpen(false);
+      setIsNoteSuggestionsOpen(false); 
+
+      requestAnimationFrame(() => {
+        textarea.focus();
+        const newCursorPos = start + 1;
+        textarea.setSelectionRange(newCursorPos, newCursorPos);
+        // Manually trigger suggestion update for notes
+        const textBeforeCursor = newText.substring(0, newCursorPos);
+        const noteMatch = textBeforeCursor.match(/@([\p{L}\p{N}\s-]*)$/u);
+        if (noteMatch) {
+          const query = noteMatch[1].toLowerCase();
+          const filtered = allNotes.filter(n => 
+            (noteToEdit ? n.id !== noteToEdit.id : true) &&
+            n.content.toLowerCase().includes(query)
+          ).slice(0,5);
+          if (filtered.length > 0) {
+            setCurrentNoteSuggestions(filtered);
+            setNoteQueryRange({ start: noteMatch.index!, end: newCursorPos });
+            setIsNoteSuggestionsOpen(true);
+          }
+        }
+      });
+    }
+  };
 
   return (
     <div className="bg-card p-4 rounded-lg border border-border shadow-sm">
       <form onSubmit={handleSubmit} className="space-y-3">
-        <Popover open={isSuggestionsOpen} onOpenChange={setIsSuggestionsOpen}>
-          <PopoverTrigger asChild>
-            {/* The Textarea itself acts as the conceptual anchor for the Popover */}
-            {/* No actual clickable trigger element is needed here since 'open' is controlled programmatically */}
-            <div className="relative">
-              <Textarea
-                ref={textareaRef}
-                value={content}
-                onChange={handleTextareaChange}
-                placeholder="现在的想法是..."
-                rows={3}
-                className="resize-none focus:ring-primary focus:border-primary text-sm p-3 pr-12 block w-full border-none focus:ring-0"
-                aria-label="Note content"
-                disabled={isLoading}
-                onBlur={() => {
-                  // Delay hiding suggestions to allow click on popover
-                  setTimeout(() => {
-                    if (!document.activeElement?.closest('[data-radix-popper-content-wrapper]')) {
-                       setIsSuggestionsOpen(false);
-                    }
-                  }, 100);
-                }}
-              />
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="absolute top-2 right-2 text-muted-foreground hover:text-primary h-8 w-8"
-                onClick={() => console.log("O logo clicked")} 
-                disabled={isLoading}
-                aria-label="Open AI options"
-              >
-                <Globe className="h-5 w-5" />
-              </Button>
-            </div>
-          </PopoverTrigger>
-          <PopoverContent 
-            className="w-[--radix-popover-trigger-width] p-0 max-h-60 overflow-auto shadow-lg"
-            side="bottom"
-            align="start"
-            onOpenAutoFocus={(e) => e.preventDefault()} // Keep focus on textarea
-            onCloseAutoFocus={(e) => e.preventDefault()} // Prevent focus shift on close
+        {/* Container for Textarea and Popovers */}
+        <div className="relative">
+          <Popover open={isTagSuggestionsOpen} onOpenChange={setIsTagSuggestionsOpen}>
+            <PopoverTrigger asChild>
+              {/* This div is just a conceptual anchor for the Popover, Textarea is the actual trigger */}
+              <div/>
+            </PopoverTrigger>
+            <PopoverContent 
+              className="w-[--radix-popover-trigger-width] p-0 max-h-60 overflow-auto shadow-lg"
+              side="bottom"
+              align="start"
+              onOpenAutoFocus={(e) => e.preventDefault()} 
+              onCloseAutoFocus={(e) => e.preventDefault()}
+              style={{
+                // Dynamically position based on textarea's ref (conceptual)
+                // Actual positioning is handled by Radix Popover relative to its Trigger
+                // However, this ensures the PopoverContent uses the Textarea's width
+                width: textareaRef.current ? `${textareaRef.current.offsetWidth}px` : 'auto',
+              }}
+            >
+              {currentTagSuggestions.map((tag) => (
+                <Button
+                  key={tag}
+                  variant="ghost"
+                  className="w-full justify-start rounded-none px-3 py-1.5 text-sm font-normal h-auto"
+                  onClick={() => handleSelectTag(tag)}
+                >
+                  #{tag}
+                </Button>
+              ))}
+            </PopoverContent>
+          </Popover>
+
+          <Popover open={isNoteSuggestionsOpen} onOpenChange={setIsNoteSuggestionsOpen}>
+            <PopoverTrigger asChild>
+              <div/>
+            </PopoverTrigger>
+            <PopoverContent 
+              className="w-[--radix-popover-trigger-width] p-0 max-h-60 overflow-auto shadow-lg"
+              side="bottom"
+              align="start"
+              onOpenAutoFocus={(e) => e.preventDefault()}
+              onCloseAutoFocus={(e) => e.preventDefault()}
+              style={{
+                width: textareaRef.current ? `${textareaRef.current.offsetWidth}px` : 'auto',
+              }}
+            >
+              {currentNoteSuggestions.map((note) => (
+                <Button
+                  key={note.id}
+                  variant="ghost"
+                  className="w-full justify-start rounded-none px-3 py-1.5 text-sm font-normal h-auto text-left"
+                  onClick={() => handleSelectNoteSuggestion(note)}
+                >
+                  <div className="truncate">
+                    <span className="font-medium">ID: {note.id.substring(0,8)}...</span><br/>
+                    <span className="text-xs text-muted-foreground">{note.content.substring(0, 50)}{note.content.length > 50 ? '...' : ''}</span>
+                  </div>
+                </Button>
+              ))}
+            </PopoverContent>
+          </Popover>
+
+          <Textarea
+            ref={textareaRef}
+            value={content}
+            onChange={handleTextareaChange}
+            placeholder="现在的想法是..."
+            rows={3}
+            className="resize-none focus:ring-primary focus:border-primary text-sm p-3 pr-12 block w-full border-none focus:ring-0"
+            aria-label="Note content"
+            disabled={isLoading}
+            onBlur={() => {
+              setTimeout(() => {
+                if (!document.activeElement?.closest('[data-radix-popper-content-wrapper]')) {
+                   setIsTagSuggestionsOpen(false);
+                   setIsNoteSuggestionsOpen(false);
+                }
+              }, 150); // Increased delay slightly
+            }}
+          />
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="absolute top-2 right-2 text-muted-foreground hover:text-primary h-8 w-8"
+            onClick={() => console.log("O logo clicked")} 
+            disabled={isLoading}
+            aria-label="Open AI options"
           >
-            {currentSuggestions.map((tag) => (
-              <Button
-                key={tag}
-                variant="ghost"
-                className="w-full justify-start rounded-none px-3 py-1.5 text-sm font-normal h-auto"
-                onClick={() => handleSelectTag(tag)}
-                // Add hover/focus styling if needed
-              >
-                #{tag}
-              </Button>
-            ))}
-            {/* Optional: message if no suggestions but popover is technically open */}
-            {/* {currentSuggestions.length === 0 && tagQueryInfo && (
-              <p className="p-2 text-xs text-muted-foreground">No matching tags found.</p>
-            )} */}
-          </PopoverContent>
-        </Popover>
+            <Globe className="h-5 w-5" />
+          </Button>
+        </div>
+
 
         {imagePreview && (
           <div className="relative group rounded-md overflow-hidden border border-muted shadow-sm max-w-xs">
@@ -308,7 +429,7 @@ export default function NoteInputForm({
             </Button>
             <Button type="button" variant="ghost" size="icon" className="text-muted-foreground hover:text-primary h-7 w-7" disabled={isLoading} aria-label="Format text"><Type className="h-4 w-4" /></Button>
             <Button type="button" variant="ghost" size="icon" className="text-muted-foreground hover:text-primary h-7 w-7" disabled={isLoading} aria-label="Create list"><List className="h-4 w-4" /></Button>
-            <Button type="button" variant="ghost" size="icon" className="text-muted-foreground hover:text-primary h-7 w-7" disabled={isLoading} aria-label="Mention user"><AtSign className="h-4 w-4" /></Button>
+            <Button type="button" variant="ghost" size="icon" className="text-muted-foreground hover:text-primary h-7 w-7" disabled={isLoading} onClick={handleInsertAtSymbol} aria-label="Mention user or link note"><AtSign className="h-4 w-4" /></Button>
           </div>
           <div className="flex items-center space-x-2">
             {noteToEdit && (
@@ -343,5 +464,3 @@ export default function NoteInputForm({
     </div>
   );
 }
-
-    

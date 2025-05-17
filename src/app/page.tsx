@@ -305,6 +305,7 @@ export default function HomePage() {
               noteToEdit={noteToEdit}
               onCancelEdit={handleCancelEdit}
               allTags={allTags} 
+              allNotes={notes} // Pass all notes for @-mention suggestions
             />
             
             <div className="flex items-center justify-between mt-6 mb-4">
@@ -320,7 +321,7 @@ export default function HomePage() {
               onToggleTag={handleToggleTag} 
               activeTags={activeTags}
               onEditNote={handleSetNoteToEdit}
-              onDeleteNote={openDeleteConfirmDialog} // Pass handler to open dialog
+              onDeleteNote={openDeleteConfirmDialog} 
             />
           </div>
         </main>
