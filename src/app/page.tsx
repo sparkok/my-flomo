@@ -37,6 +37,15 @@ import {
   Folder 
 } from "lucide-react";
 
+const extractTitleFromContent = (content: string): string => {
+  if (!content) return "";
+  const firstLine = content.split('\n')[0];
+  // Regex to remove tags like #tag or #some/path/tag
+  const titleWithoutTags = firstLine.replace(/#([^#\s\/]+(?:\/[^#\s\/]+)*)/g, '').trim();
+  return titleWithoutTags;
+};
+
+
 export default function HomePage() {
   const [notes, setNotes] = useState<Note[]>([]);
   const [activeTags, setActiveTags] = useState<Set<string>>(new Set());
@@ -55,6 +64,7 @@ export default function HomePage() {
       try {
         const parsedNotes: Note[] = JSON.parse(storedNotes).map((note: any) => ({
           ...note,
+          title: note.title || extractTitleFromContent(note.content), // Ensure title exists
           createdAt: new Date(note.createdAt),
         }));
         setNotes(parsedNotes);
@@ -96,6 +106,7 @@ export default function HomePage() {
     setIsLoading(true);
 
     const manuallyExtractedTags = extractTagsFromContent(content);
+    const derivedTitle = extractTitleFromContent(content);
 
     try {
       const { tags: aiTags } = await generateTags({ text: content });
@@ -106,6 +117,7 @@ export default function HomePage() {
       if (noteIdToUpdate) {
         const updatedNote: Note = {
           id: noteIdToUpdate,
+          title: derivedTitle,
           content,
           createdAt: notes.find(n => n.id === noteIdToUpdate)?.createdAt || new Date(),
           tags: combinedTags,
@@ -119,6 +131,7 @@ export default function HomePage() {
       } else {
         const newNote: Note = {
           id: new Date().toISOString(),
+          title: derivedTitle,
           content,
           createdAt: new Date(),
           tags: combinedTags,
@@ -137,6 +150,7 @@ export default function HomePage() {
       if (noteIdToUpdate) {
         const updatedNoteWithoutAITags: Note = {
           id: noteIdToUpdate,
+          title: derivedTitle,
           content,
           createdAt: notes.find(n => n.id === noteIdToUpdate)?.createdAt || new Date(),
           tags: fallbackTags,
@@ -146,6 +160,7 @@ export default function HomePage() {
       } else {
         const newNoteWithoutAITags: Note = {
           id: new Date().toISOString(),
+          title: derivedTitle,
           content,
           createdAt: new Date(),
           tags: fallbackTags,
@@ -318,7 +333,7 @@ export default function HomePage() {
             
             <NoteList 
               notes={filteredNotes} 
-              allNotes={notes} // Pass all notes for link resolution
+              allNotes={notes} 
               onToggleTag={handleToggleTag} 
               activeTags={activeTags}
               onEditNote={handleSetNoteToEdit}

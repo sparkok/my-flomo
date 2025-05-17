@@ -16,7 +16,7 @@ interface NoteInputFormProps {
   noteToEdit: Note | null;
   onCancelEdit: () => void;
   allTags: string[];
-  allNotes: Note[]; // Added prop for all available notes
+  allNotes: Note[]; 
 }
 
 export default function NoteInputForm({ 
@@ -25,7 +25,7 @@ export default function NoteInputForm({
   noteToEdit, 
   onCancelEdit,
   allTags,
-  allNotes // Destructure new prop
+  allNotes 
 }: NoteInputFormProps) {
   const [content, setContent] = useState("");
   const [imageFile, setImageFile] = useState<File | null>(null);
@@ -140,7 +140,6 @@ export default function NoteInputForm({
       const cursorPos = textarea.selectionStart;
       const textBeforeCursor = newContent.substring(0, cursorPos);
       
-      // Tag suggestion logic
       const tagMatch = textBeforeCursor.match(/#([\w\/-]*)$/);
       if (tagMatch && tagMatch[0].length > 0) {
         const query = tagMatch[1];
@@ -149,7 +148,7 @@ export default function NoteInputForm({
           setCurrentTagSuggestions(filtered);
           setTagQueryInfo({ query: tagMatch[0], range: { start: tagMatch.index!, end: cursorPos } });
           setIsTagSuggestionsOpen(true);
-          setIsNoteSuggestionsOpen(false); // Close note suggestions if tag suggestions are open
+          setIsNoteSuggestionsOpen(false); 
         } else {
           setIsTagSuggestionsOpen(false);
         }
@@ -157,17 +156,14 @@ export default function NoteInputForm({
         setIsTagSuggestionsOpen(false);
       }
 
-      // Note suggestion logic (only if tag suggestions are not active)
       if (!isTagSuggestionsOpen) {
-        const noteMentionMatch = textBeforeCursor.match(/@([\p{L}\p{N}\s-]*)$/u); // Unicode letters, numbers, spaces, hyphens
+        const noteMentionMatch = textBeforeCursor.match(/@([\p{L}\p{N}\s-]*)$/u); 
         if (noteMentionMatch) {
           const query = noteMentionMatch[1].toLowerCase();
-          // Filter notes where the content includes the query (case-insensitive)
-          // and the note is not the one currently being edited (if any)
           const filteredNotes = allNotes.filter(n => 
             (noteToEdit ? n.id !== noteToEdit.id : true) &&
-            n.content.toLowerCase().includes(query)
-          ).slice(0, 5); // Limit to 5 suggestions
+            (n.title.toLowerCase().includes(query) || n.content.toLowerCase().includes(query))
+          ).slice(0, 5); 
 
           if (filteredNotes.length > 0) {
             setCurrentNoteSuggestions(filteredNotes);
@@ -218,7 +214,6 @@ export default function NoteInputForm({
         textarea.focus();
         const newCursorPos = start + 1;
         textarea.setSelectionRange(newCursorPos, newCursorPos);
-        // Manually trigger suggestion update for tags
         const textBeforeCursor = newText.substring(0, newCursorPos);
         const tagMatch = textBeforeCursor.match(/#([\w\/-]*)$/);
         if (tagMatch) {
@@ -240,14 +235,14 @@ export default function NoteInputForm({
       const linkText = `[[note:${selectedNote.id}]]`;
       const before = content.substring(0, noteQueryRange.start);
       const after = content.substring(noteQueryRange.end);
-      const newText = `${before}${linkText} ${after}`; // Add a space after the link
+      const newText = `${before}${linkText} ${after}`; 
       setContent(newText);
       setIsNoteSuggestionsOpen(false);
       setNoteQueryRange(null);
 
       requestAnimationFrame(() => {
         textarea.focus();
-        const newCursorPos = noteQueryRange.start + linkText.length + 1; // +1 for the space
+        const newCursorPos = noteQueryRange.start + linkText.length + 1; 
         textarea.setSelectionRange(newCursorPos, newCursorPos);
       });
     }
@@ -269,14 +264,13 @@ export default function NoteInputForm({
         textarea.focus();
         const newCursorPos = start + 1;
         textarea.setSelectionRange(newCursorPos, newCursorPos);
-        // Manually trigger suggestion update for notes
         const textBeforeCursor = newText.substring(0, newCursorPos);
         const noteMatch = textBeforeCursor.match(/@([\p{L}\p{N}\s-]*)$/u);
         if (noteMatch) {
           const query = noteMatch[1].toLowerCase();
           const filtered = allNotes.filter(n => 
             (noteToEdit ? n.id !== noteToEdit.id : true) &&
-            n.content.toLowerCase().includes(query)
+            (n.title.toLowerCase().includes(query) || n.content.toLowerCase().includes(query))
           ).slice(0,5);
           if (filtered.length > 0) {
             setCurrentNoteSuggestions(filtered);
@@ -291,11 +285,9 @@ export default function NoteInputForm({
   return (
     <div className="bg-card p-4 rounded-lg border border-border shadow-sm">
       <form onSubmit={handleSubmit} className="space-y-3">
-        {/* Container for Textarea and Popovers */}
         <div className="relative">
           <Popover open={isTagSuggestionsOpen} onOpenChange={setIsTagSuggestionsOpen}>
             <PopoverTrigger asChild>
-              {/* This div is just a conceptual anchor for the Popover, Textarea is the actual trigger */}
               <div/>
             </PopoverTrigger>
             <PopoverContent 
@@ -305,9 +297,6 @@ export default function NoteInputForm({
               onOpenAutoFocus={(e) => e.preventDefault()} 
               onCloseAutoFocus={(e) => e.preventDefault()}
               style={{
-                // Dynamically position based on textarea's ref (conceptual)
-                // Actual positioning is handled by Radix Popover relative to its Trigger
-                // However, this ensures the PopoverContent uses the Textarea's width
                 width: textareaRef.current ? `${textareaRef.current.offsetWidth}px` : 'auto',
               }}
             >
@@ -346,8 +335,13 @@ export default function NoteInputForm({
                   onClick={() => handleSelectNoteSuggestion(note)}
                 >
                   <div className="truncate">
-                    <span className="font-medium">ID: {note.id.substring(0,8)}...</span><br/>
-                    <span className="text-xs text-muted-foreground">{note.content.substring(0, 50)}{note.content.length > 50 ? '...' : ''}</span>
+                    <span className="font-medium">
+                      {note.title || `ID: ${note.id.substring(0,8)}...`}
+                    </span>
+                    <br/>
+                    <span className="text-xs text-muted-foreground">
+                      {note.title ? note.content.substring(0, 50) + (note.content.length > 50 ? '...' : '') : (note.content.length > 50 ? note.content.substring(0, 50) + '...' : note.content || 'No content')}
+                    </span>
                   </div>
                 </Button>
               ))}
@@ -369,7 +363,7 @@ export default function NoteInputForm({
                    setIsTagSuggestionsOpen(false);
                    setIsNoteSuggestionsOpen(false);
                 }
-              }, 150); // Increased delay slightly
+              }, 150);
             }}
           />
           <Button

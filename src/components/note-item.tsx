@@ -10,7 +10,7 @@ import React from "react";
 
 interface NoteItemProps {
   note: Note;
-  allNotes: Note[]; // Added to resolve note links
+  allNotes: Note[]; 
   onToggleTag: (tag: string) => void;
   activeTags: Set<string>;
   onEditNote: (noteId: string) => void;
@@ -32,9 +32,12 @@ const renderContentWithLinks = (content: string, allNotes: Note[]): React.ReactN
     }
 
     if (linkedNote) {
-      let displayName = linkedNote.content.substring(0, 30);
-      if (linkedNote.content.length > 30) {
-        displayName += "...";
+      let displayName = linkedNote.title; // Prioritize derived title
+      if (!displayName) { // Fallback to content snippet if title is empty
+        displayName = linkedNote.content.substring(0, 30);
+        if (linkedNote.content.length > 30) {
+          displayName += "...";
+        }
       }
       if (!displayName.trim() && linkedNote.imageDataUri) {
         displayName = "Image Note";
