@@ -2,7 +2,7 @@
 "use client";
 
 import type { Note } from "@/lib/types";
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import NoteInputForm from "@/components/note-input-form";
 import NoteList from "@/components/note-list";
 import TagFilter from "@/components/tag-filter";
@@ -11,13 +11,13 @@ import { Toaster } from "@/components/ui/toaster";
 import { useToast } from "@/hooks/use-toast";
 import { generateTags } from "@/ai/flows/generate-tags";
 import { Separator } from "@/components/ui/separator";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 export default function HomePage() {
   const [notes, setNotes] = useState<Note[]>([]);
   const [activeTags, setActiveTags] = useState<Set<string>>(new Set());
   const [isLoading, setIsLoading] = useState(false);
+  const [noteToEdit, setNoteToEdit] = useState<Note | null>(null);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -42,11 +42,7 @@ export default function HomePage() {
 
   const extractTagsFromContent = (content: string): string[] => {
     const extracted: string[] = [];
-    // Corrected regex:
-    // - \s for whitespace (was \\s)
-    // - \/ for literal slash (was \\/ or / in character class)
-    // - Ensures segments don't contain #, whitespace, or /
-    const regex = /#([^#\s\/]+(?:\/[^#\s\/]+)*)/g;
+    const regex = /#([^#\s\/]+(?:\/[^#\s\/]+)*)/g; 
     let match;
     while ((match = regex.exec(content)) !== null) {
       extracted.push(match[1]);
@@ -54,7 +50,12 @@ export default function HomePage() {
     return Array.from(new Set(extracted));
   };
 
-  const handleAddNote = async (content: string, imageDataUri?: string) => {
+  const handleSaveNote = useCallback(async (
+    data: { content: string; imageDataUri?: string },
+    noteIdToUpdate?: string
+  ) => {
+    const { content, imageDataUri } = data;
+
     if (!content.trim() && !imageDataUri) {
       toast({
         title: "Empty Note",
@@ -68,45 +69,87 @@ export default function HomePage() {
     const manuallyExtractedTags = extractTagsFromContent(content);
 
     try {
-      // For now, AI tagging will only use text content.
-      // Future enhancement: pass imageDataUri to AI for image-based tagging.
       const { tags: aiTags } = await generateTags({ text: content });
       const combinedTags = Array.from(
         new Set([...manuallyExtractedTags, ...(aiTags || [])])
       ).sort();
       
-      const newNote: Note = {
-        id: new Date().toISOString(),
-        content,
-        createdAt: new Date(),
-        tags: combinedTags,
-        imageDataUri,
-      };
-      setNotes((prevNotes) => [newNote, ...prevNotes]);
-      toast({
-        title: "Note Saved",
-        description: "Your note has been successfully saved.",
-      });
+      if (noteIdToUpdate) {
+        // Update existing note
+        const updatedNote: Note = {
+          id: noteIdToUpdate,
+          content,
+          createdAt: notes.find(n => n.id === noteIdToUpdate)?.createdAt || new Date(), // Keep original creation date
+          tags: combinedTags,
+          imageDataUri,
+        };
+        setNotes(prevNotes => prevNotes.map(note => note.id === noteIdToUpdate ? updatedNote : note));
+        toast({
+          title: "Note Updated",
+          description: "Your note has been successfully updated.",
+        });
+      } else {
+        // Add new note
+        const newNote: Note = {
+          id: new Date().toISOString(),
+          content,
+          createdAt: new Date(),
+          tags: combinedTags,
+          imageDataUri,
+        };
+        setNotes(prevNotes => [newNote, ...prevNotes]);
+        toast({
+          title: "Note Saved",
+          description: "Your note has been successfully saved.",
+        });
+      }
     } catch (error) {
-      console.error("Error generating tags or saving note:", error);
+      console.error("Error generating tags or saving/updating note:", error);
       const fallbackTags = Array.from(new Set([...manuallyExtractedTags])).sort();
-      const newNoteWithoutAITags: Note = {
-        id: new Date().toISOString(),
-        content,
-        createdAt: new Date(),
-        tags: fallbackTags,
-        imageDataUri,
-      };
-      setNotes((prevNotes) => [newNoteWithoutAITags, ...prevNotes]);
+      
+      if (noteIdToUpdate) {
+        const updatedNoteWithoutAITags: Note = {
+          id: noteIdToUpdate,
+          content,
+          createdAt: notes.find(n => n.id === noteIdToUpdate)?.createdAt || new Date(),
+          tags: fallbackTags,
+          imageDataUri,
+        };
+        setNotes(prevNotes => prevNotes.map(note => note.id === noteIdToUpdate ? updatedNoteWithoutAITags : note));
+      } else {
+        const newNoteWithoutAITags: Note = {
+          id: new Date().toISOString(),
+          content,
+          createdAt: new Date(),
+          tags: fallbackTags,
+          imageDataUri,
+        };
+        setNotes(prevNotes => [newNoteWithoutAITags, ...prevNotes]);
+      }
       toast({
-        title: "Note Saved (AI Tagging Failed)",
+        title: noteIdToUpdate ? "Note Updated (AI Tagging Failed)" : "Note Saved (AI Tagging Failed)",
         description: `Note saved with manually extracted tags: ${fallbackTags.join(', ')}. AI tagging failed.`,
         variant: "destructive",
       });
     } finally {
       setIsLoading(false);
+      setNoteToEdit(null); // Clear editing state after save/update
     }
-  };
+  }, [notes, toast]);
+
+  const handleSetNoteToEdit = useCallback((noteId: string) => {
+    const note = notes.find(n => n.id === noteId);
+    if (note) {
+      setNoteToEdit(note);
+      // Optionally scroll to form or give some visual indication
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  }, [notes]);
+
+  const handleCancelEdit = useCallback(() => {
+    setNoteToEdit(null);
+  }, []);
+
 
   const handleToggleTag = (tag: string) => {
     setActiveTags((prevTags) => {
@@ -147,7 +190,7 @@ export default function HomePage() {
       <main className="flex-grow container mx-auto px-4 py-6">
         <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
           <aside className="md:col-span-4 lg:col-span-3 space-y-6">
-            <Card className="shadow-lg sticky top-[calc(4rem+24px)]"> {/* Adjust top value based on header height + desired gap */}
+            <Card className="shadow-lg sticky top-[calc(4rem+24px)]">
               <CardHeader>
                 <CardTitle className="text-xl">Filter by Tags</CardTitle>
               </CardHeader>
@@ -162,9 +205,19 @@ export default function HomePage() {
           </aside>
 
           <section className="md:col-span-8 lg:col-span-9 space-y-6">
-            <NoteInputForm onAddNote={handleAddNote} isLoading={isLoading} />
+            <NoteInputForm 
+              onSaveNote={handleSaveNote} 
+              isLoading={isLoading}
+              noteToEdit={noteToEdit}
+              onCancelEdit={handleCancelEdit}
+            />
             <Separator />
-            <NoteList notes={filteredNotes} onToggleTag={handleToggleTag} activeTags={activeTags}/>
+            <NoteList 
+              notes={filteredNotes} 
+              onToggleTag={handleToggleTag} 
+              activeTags={activeTags}
+              onEditNote={handleSetNoteToEdit}
+            />
           </section>
         </div>
       </main>

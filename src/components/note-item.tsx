@@ -1,7 +1,8 @@
 import type { Note } from "@/lib/types";
-import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { CalendarDays, Tag } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { CalendarDays, Tag, Pencil } from "lucide-react";
 import { format } from 'date-fns';
 import Image from 'next/image';
 
@@ -9,16 +10,20 @@ interface NoteItemProps {
   note: Note;
   onToggleTag: (tag: string) => void;
   activeTags: Set<string>;
+  onEditNote: (noteId: string) => void;
 }
 
-export default function NoteItem({ note, onToggleTag, activeTags }: NoteItemProps) {
+export default function NoteItem({ note, onToggleTag, activeTags, onEditNote }: NoteItemProps) {
   return (
     <Card className="shadow-md hover:shadow-lg transition-shadow duration-200 ease-in-out animate-fade-in rounded-lg overflow-hidden">
-      <CardHeader className="pb-3 pt-4 px-5 bg-muted/30 border-b">
+      <CardHeader className="pb-3 pt-4 px-5 bg-muted/30 border-b flex flex-row justify-between items-center">
         <div className="flex items-center text-xs text-muted-foreground">
           <CalendarDays className="mr-1.5 h-3.5 w-3.5 text-primary" />
           <span>{format(new Date(note.createdAt), "MMM d, yyyy 'at' h:mm a")}</span>
         </div>
+        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => onEditNote(note.id)} aria-label="Edit note">
+          <Pencil className="h-4 w-4 text-primary" />
+        </Button>
       </CardHeader>
       <CardContent className="py-4 px-5">
         {note.imageDataUri && (
@@ -26,8 +31,8 @@ export default function NoteItem({ note, onToggleTag, activeTags }: NoteItemProp
             <Image 
               src={note.imageDataUri} 
               alt="Note image" 
-              width={600} // Adjust as needed
-              height={400} // Adjust as needed
+              width={600}
+              height={400}
               className="w-full h-auto max-h-96 object-contain rounded-md"
               data-ai-hint="note illustration" 
             />

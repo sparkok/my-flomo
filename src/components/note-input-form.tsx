@@ -1,26 +1,41 @@
 
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import type { ChangeEvent, FormEvent } from "react";
+import type { Note } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Send, Loader2, ImagePlus, XCircle } from "lucide-react";
+import { Send, Loader2, ImagePlus, XCircle, RotateCcw } from "lucide-react";
 import Image from 'next/image';
 import { useToast } from "@/hooks/use-toast";
 
 interface NoteInputFormProps {
-  onAddNote: (content: string, imageDataUri?: string) => Promise<void>;
+  onSaveNote: (data: { content: string; imageDataUri?: string }, noteIdToUpdate?: string) => Promise<void>;
   isLoading: boolean;
+  noteToEdit: Note | null;
+  onCancelEdit: () => void;
 }
 
-export default function NoteInputForm({ onAddNote, isLoading }: NoteInputFormProps) {
+export default function NoteInputForm({ onSaveNote, isLoading, noteToEdit, onCancelEdit }: NoteInputFormProps) {
   const [content, setContent] = useState("");
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
+
+  useEffect(() => {
+    if (noteToEdit) {
+      setContent(noteToEdit.content);
+      setImagePreview(noteToEdit.imageDataUri || null);
+      setImageFile(null); // Reset file input, user must re-select to change image
+    } else {
+      setContent("");
+      setImagePreview(null);
+      setImageFile(null);
+    }
+  }, [noteToEdit]);
 
   const handleImageChange = (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -32,7 +47,7 @@ export default function NoteInputForm({ onAddNote, isLoading }: NoteInputFormPro
           variant: "destructive",
         });
         if (fileInputRef.current) {
-          fileInputRef.current.value = ""; // Reset file input
+          fileInputRef.current.value = ""; 
         }
         return;
       }
@@ -43,8 +58,10 @@ export default function NoteInputForm({ onAddNote, isLoading }: NoteInputFormPro
       };
       reader.readAsDataURL(file);
     } else {
+      // This case might not be hit if browser doesn't allow selecting "no file"
+      // but it's good for completeness.
       setImageFile(null);
-      setImagePreview(null);
+      setImagePreview(noteToEdit?.imageDataUri || null); // Revert to original if clearing selection
     }
   };
 
@@ -52,13 +69,13 @@ export default function NoteInputForm({ onAddNote, isLoading }: NoteInputFormPro
     setImageFile(null);
     setImagePreview(null);
     if (fileInputRef.current) {
-      fileInputRef.current.value = ""; // Reset file input
+      fileInputRef.current.value = "";
     }
   };
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    if (!content.trim() && !imageFile) {
+    if (!content.trim() && !imageFile && !imagePreview) { // Check imagePreview for existing images
         toast({
             title: "Empty Note",
             description: "Cannot save an empty note without content or an image.",
@@ -67,26 +84,40 @@ export default function NoteInputForm({ onAddNote, isLoading }: NoteInputFormPro
         return;
     }
     
-    let imageDataUri: string | undefined = undefined;
-    if (imageFile) {
-      imageDataUri = await new Promise((resolve) => {
+    let finalImageDataUri: string | undefined = undefined;
+    if (imageFile) { // New image selected
+      finalImageDataUri = await new Promise((resolve, reject) => {
         const reader = new FileReader();
-        reader.onloadend = () => {
-          resolve(reader.result as string);
-        };
+        reader.onloadend = () => resolve(reader.result as string);
+        reader.onerror = reject;
         reader.readAsDataURL(imageFile);
       });
+    } else if (imagePreview) { // Existing image is kept (or was just removed and preview is now null)
+       finalImageDataUri = imagePreview;
     }
+    // If imagePreview is null (either never had one, or it was removed via XCircle), finalImageDataUri will be undefined.
     
-    await onAddNote(content, imageDataUri);
-    setContent("");
-    removeImage();
+    await onSaveNote({ content, imageDataUri: finalImageDataUri }, noteToEdit?.id);
+    
+    // onSaveNote in parent will call setNoteToEdit(null), which triggers useEffect to clear form.
+    // If it wasn't an edit, we clear fields directly.
+    if (!noteToEdit) {
+        setContent("");
+        removeImage();
+    }
+  };
+
+  const handleCancel = () => {
+    onCancelEdit(); 
+    // Form fields will be reset by useEffect watching noteToEdit
   };
 
   return (
     <Card className="shadow-lg rounded-lg overflow-hidden">
       <CardHeader className="bg-muted/50">
-        <CardTitle className="text-xl text-primary">Capture a new thought</CardTitle>
+        <CardTitle className="text-xl text-primary">
+          {noteToEdit ? "Edit Note" : "Capture a new thought"}
+        </CardTitle>
       </CardHeader>
       <CardContent className="p-6">
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -125,32 +156,47 @@ export default function NoteInputForm({ onAddNote, isLoading }: NoteInputFormPro
           )}
 
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => fileInputRef.current?.click()}
-              disabled={isLoading || !!imagePreview}
-              className="w-full sm:w-auto rounded-md"
-            >
-              <ImagePlus className="mr-2 h-4 w-4" />
-              {imagePreview ? "Change Image" : "Add Image"}
-            </Button>
-            <input
-              type="file"
-              ref={fileInputRef}
-              accept="image/*"
-              onChange={handleImageChange}
-              className="hidden"
-              aria-label="Upload image"
-              disabled={isLoading}
-            />
+            <div className="flex gap-3">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={isLoading}
+                className="w-full sm:w-auto rounded-md"
+              >
+                <ImagePlus className="mr-2 h-4 w-4" />
+                {imagePreview ? "Change Image" : "Add Image"}
+              </Button>
+              <input
+                type="file"
+                ref={fileInputRef}
+                accept="image/*"
+                onChange={handleImageChange}
+                className="hidden"
+                aria-label="Upload image"
+                disabled={isLoading}
+              />
+              {noteToEdit && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleCancel}
+                  disabled={isLoading}
+                  className="w-full sm:w-auto rounded-md"
+                  aria-label="Cancel edit"
+                >
+                  <RotateCcw className="mr-2 h-4 w-4" />
+                  Cancel
+                </Button>
+              )}
+            </div>
             <Button type="submit" disabled={isLoading} className="w-full sm:w-auto rounded-md">
               {isLoading ? (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               ) : (
                 <Send className="mr-2 h-4 w-4" />
               )}
-              {isLoading ? "Saving..." : "Save Note"}
+              {isLoading ? (noteToEdit ? "Updating..." : "Saving...") : (noteToEdit ? "Update Note" : "Save Note")}
             </Button>
           </div>
         </form>

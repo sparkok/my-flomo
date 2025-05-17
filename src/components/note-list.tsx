@@ -6,9 +6,10 @@ interface NoteListProps {
   notes: Note[];
   onToggleTag: (tag: string) => void;
   activeTags: Set<string>;
+  onEditNote: (noteId: string) => void;
 }
 
-export default function NoteList({ notes, onToggleTag, activeTags }: NoteListProps) {
+export default function NoteList({ notes, onToggleTag, activeTags, onEditNote }: NoteListProps) {
   if (notes.length === 0) {
     return (
       <div className="text-center py-12 text-muted-foreground bg-card shadow-md rounded-lg">
@@ -27,7 +28,7 @@ export default function NoteList({ notes, onToggleTag, activeTags }: NoteListPro
     <ScrollArea className="h-[calc(100vh-460px)] md:h-[calc(100vh-420px)] pr-3 -mr-3"> {/* Adjust height & padding for scrollbar */}
       <div className="space-y-4">
         {notes.map(note => (
-          <NoteItem key={note.id} note={note} onToggleTag={onToggleTag} activeTags={activeTags} />
+          <NoteItem key={note.id} note={note} onToggleTag={onToggleTag} activeTags={activeTags} onEditNote={onEditNote} />
         ))}
       </div>
     </ScrollArea>
