@@ -1,9 +1,9 @@
 
 import type { Note } from "@/lib/types";
-import { Badge } from "@/components/ui/badge";
+// Removed Badge import as it's no longer used here if we remove tag display
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
-import { Tag, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
+import { MoreHorizontal, Pencil, Trash2 } from "lucide-react"; // Removed Tag icon
 import { format } from 'date-fns';
 import Image from 'next/image';
 import React from "react";
@@ -11,8 +11,8 @@ import React from "react";
 interface NoteItemProps {
   note: Note;
   allNotes: Note[]; 
-  onToggleTag: (tag: string) => void;
-  activeTags: Set<string>;
+  onToggleTag: (tag: string) => void; // This prop might be kept if other interactions depend on it, but not for displaying tags here
+  activeTags: Set<string>; // Similar to onToggleTag
   onEditNote: (noteId: string) => void;
   onDeleteNote: (noteId: string) => void;
 }
@@ -32,8 +32,8 @@ const renderContentWithLinks = (content: string, allNotes: Note[]): React.ReactN
     }
 
     if (linkedNote) {
-      let displayName = linkedNote.title; // Prioritize derived title
-      if (!displayName) { // Fallback to content snippet if title is empty
+      let displayName = linkedNote.title; 
+      if (!displayName) { 
         displayName = linkedNote.content.substring(0, 30);
         if (linkedNote.content.length > 30) {
           displayName += "...";
@@ -67,7 +67,8 @@ const renderContentWithLinks = (content: string, allNotes: Note[]): React.ReactN
 };
 
 
-export default function NoteItem({ note, allNotes, onToggleTag, activeTags, onEditNote, onDeleteNote }: NoteItemProps) {
+export default function NoteItem({ note, allNotes, onEditNote, onDeleteNote }: NoteItemProps) {
+  // activeTags and onToggleTag are no longer directly used in this component for rendering badges
   return (
     <div className="bg-card p-4 rounded-md border border-border hover:shadow-sm transition-shadow duration-200 ease-in-out animate-fade-in">
       <div className="flex justify-between items-start mb-2">
@@ -111,27 +112,30 @@ export default function NoteItem({ note, allNotes, onToggleTag, activeTags, onEd
         {renderContentWithLinks(note.content, allNotes)}
       </p>
 
-      {note.tags && note.tags.length > 0 && (
-        <div className="flex flex-wrap gap-1.5 items-center">
-          {note.tags.map(tag => (
-            <Badge
-              key={tag}
-              variant={activeTags.has(tag) ? "default" : "secondary"}
-              onClick={() => onToggleTag(tag)}
-              className={`cursor-pointer transition-all duration-150 ease-in-out hover:opacity-80
-                ${activeTags.has(tag) ? 'bg-accent/80 text-accent-foreground hover:bg-accent text-xs' : 'bg-muted hover:bg-secondary/70 text-muted-foreground hover:text-secondary-foreground text-xs'}
-                px-2 py-0.5 font-normal rounded-sm`}
-              role="button"
-              tabIndex={0}
-              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onToggleTag(tag); }}
-              aria-pressed={activeTags.has(tag)}
-              aria-label={`Tag: ${tag}`}
-            >
-             #{tag}
-            </Badge>
-          ))}
-        </div>
-      )}
+      {/* Removed the tag display section that was here */}
+      {/* 
+        {note.tags && note.tags.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 items-center">
+            {note.tags.map(tag => (
+              <Badge
+                key={tag}
+                variant={activeTags.has(tag) ? "default" : "secondary"}
+                onClick={() => onToggleTag(tag)}
+                className={`cursor-pointer transition-all duration-150 ease-in-out hover:opacity-80
+                  ${activeTags.has(tag) ? 'bg-accent/80 text-accent-foreground hover:bg-accent text-xs' : 'bg-muted hover:bg-secondary/70 text-muted-foreground hover:text-secondary-foreground text-xs'}
+                  px-2 py-0.5 font-normal rounded-sm`}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onToggleTag(tag); }}
+                aria-pressed={activeTags.has(tag)}
+                aria-label={`Tag: ${tag}`}
+              >
+               #{tag}
+              </Badge>
+            ))}
+          </div>
+        )}
+      */}
     </div>
   );
 }
