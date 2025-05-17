@@ -305,7 +305,7 @@ export default function HomePage() {
               noteToEdit={noteToEdit}
               onCancelEdit={handleCancelEdit}
               allTags={allTags} 
-              allNotes={notes} // Pass all notes for @-mention suggestions
+              allNotes={notes} 
             />
             
             <div className="flex items-center justify-between mt-6 mb-4">
@@ -318,6 +318,7 @@ export default function HomePage() {
             
             <NoteList 
               notes={filteredNotes} 
+              allNotes={notes} // Pass all notes for link resolution
               onToggleTag={handleToggleTag} 
               activeTags={activeTags}
               onEditNote={handleSetNoteToEdit}

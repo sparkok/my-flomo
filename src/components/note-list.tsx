@@ -1,15 +1,17 @@
+
 import type { Note } from "@/lib/types";
 import NoteItem from "./note-item";
 
 interface NoteListProps {
   notes: Note[];
+  allNotes: Note[]; // Added to pass down for link resolution
   onToggleTag: (tag: string) => void;
   activeTags: Set<string>;
   onEditNote: (noteId: string) => void;
-  onDeleteNote: (noteId: string) => void; // New prop
+  onDeleteNote: (noteId: string) => void;
 }
 
-export default function NoteList({ notes, onToggleTag, activeTags, onEditNote, onDeleteNote }: NoteListProps) {
+export default function NoteList({ notes, allNotes, onToggleTag, activeTags, onEditNote, onDeleteNote }: NoteListProps) {
   if (notes.length === 0) {
     return (
       <div className="text-center py-10 text-muted-foreground bg-card border border-dashed border-border rounded-lg">
@@ -30,10 +32,11 @@ export default function NoteList({ notes, onToggleTag, activeTags, onEditNote, o
         <NoteItem 
           key={note.id} 
           note={note} 
+          allNotes={allNotes} // Pass allNotes to each NoteItem
           onToggleTag={onToggleTag} 
           activeTags={activeTags} 
           onEditNote={onEditNote}
-          onDeleteNote={onDeleteNote} // Pass down the handler
+          onDeleteNote={onDeleteNote}
         />
       ))}
     </div>

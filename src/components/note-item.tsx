@@ -1,3 +1,4 @@
+
 import type { Note } from "@/lib/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -5,16 +6,65 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Tag, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
 import { format } from 'date-fns';
 import Image from 'next/image';
+import React from "react";
 
 interface NoteItemProps {
   note: Note;
+  allNotes: Note[]; // Added to resolve note links
   onToggleTag: (tag: string) => void;
   activeTags: Set<string>;
   onEditNote: (noteId: string) => void;
-  onDeleteNote: (noteId: string) => void; // New prop
+  onDeleteNote: (noteId: string) => void;
 }
 
-export default function NoteItem({ note, onToggleTag, activeTags, onEditNote, onDeleteNote }: NoteItemProps) {
+const renderContentWithLinks = (content: string, allNotes: Note[]): React.ReactNode[] => {
+  const parts: React.ReactNode[] = [];
+  let lastIndex = 0;
+  const regex = /\[\[note:([^\]]+)\]\]/g;
+  let match;
+
+  while ((match = regex.exec(content)) !== null) {
+    const noteId = match[1];
+    const linkedNote = allNotes.find(n => n.id === noteId);
+    
+    if (match.index > lastIndex) {
+      parts.push(content.substring(lastIndex, match.index));
+    }
+
+    if (linkedNote) {
+      let displayName = linkedNote.content.substring(0, 30);
+      if (linkedNote.content.length > 30) {
+        displayName += "...";
+      }
+      if (!displayName.trim() && linkedNote.imageDataUri) {
+        displayName = "Image Note";
+      } else if (!displayName.trim()) {
+        displayName = "Untitled Note";
+      }
+      parts.push(
+        <span key={`${match.index}-${noteId}`} className="font-medium text-primary cursor-pointer hover:underline">
+          @{displayName}
+        </span>
+      );
+    } else {
+      parts.push(
+        <span key={`${match.index}-${noteId}`} className="text-muted-foreground italic">
+          @Note (ID: {noteId.substring(0,8)}...) [not found]
+        </span>
+      );
+    }
+    lastIndex = regex.lastIndex;
+  }
+
+  if (lastIndex < content.length) {
+    parts.push(content.substring(lastIndex));
+  }
+
+  return parts;
+};
+
+
+export default function NoteItem({ note, allNotes, onToggleTag, activeTags, onEditNote, onDeleteNote }: NoteItemProps) {
   return (
     <div className="bg-card p-4 rounded-md border border-border hover:shadow-sm transition-shadow duration-200 ease-in-out animate-fade-in">
       <div className="flex justify-between items-start mb-2">
@@ -54,7 +104,9 @@ export default function NoteItem({ note, onToggleTag, activeTags, onEditNote, on
         </div>
       )}
 
-      <p className="text-foreground whitespace-pre-wrap text-sm leading-relaxed mb-3">{note.content}</p>
+      <p className="text-foreground whitespace-pre-wrap text-sm leading-relaxed mb-3">
+        {renderContentWithLinks(note.content, allNotes)}
+      </p>
 
       {note.tags && note.tags.length > 0 && (
         <div className="flex flex-wrap gap-1.5 items-center">
