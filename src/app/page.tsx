@@ -34,29 +34,14 @@ import {
   TrendingUp,
   Folder
 } from "lucide-react";
-
-const deriveTitleFromContent = (content: string): string => {
-  if (!content) return "";
-  const lines = content.split('\n');
-  for (const line of lines) {
-    let processedLine = line;
-    // Remove [[note:ID]] links
-    processedLine = processedLine.replace(/\[\[note:[^\]]+\]\]/g, '');
-    // Remove #tags
-    processedLine = processedLine.replace(/#([^#\s\/]+(?:\/[^#\s\/]+)*)/g, '');
-    processedLine = processedLine.trim();
-    if (processedLine.length > 0) {
-      return processedLine;
-    }
-  }
-  return ""; // Return empty if no suitable line found
-};
+import { getNotes, createNote, updateNote, deleteNote as deleteNoteAction } from "@/app/actions/noteActions";
 
 
 export default function HomePage() {
   const [notes, setNotes] = useState<Note[]>([]);
   const [activeTags, setActiveTags] = useState<Set<string>>(new Set());
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(false); // For form submission
+  const [isFetchingNotes, setIsFetchingNotes] = useState(true); // For initial load
   const [noteToEdit, setNoteToEdit] = useState<Note | null>(null);
   const { toast } = useToast();
   const [currentDate, setCurrentDate] = useState<Date | null>(null);
@@ -66,35 +51,24 @@ export default function HomePage() {
 
   useEffect(() => {
     setCurrentDate(new Date());
-    const storedNotes = localStorage.getItem("flownotes");
-    if (storedNotes) {
+    async function loadNotes() {
+      setIsFetchingNotes(true);
       try {
-        const parsedNotes: Note[] = JSON.parse(storedNotes).map((note: any) => ({
-          ...note,
-          title: deriveTitleFromContent(note.content), // Derive title for all notes
-          createdAt: new Date(note.createdAt),
-        }));
-        setNotes(parsedNotes);
+        const fetchedNotes = await getNotes();
+        setNotes(fetchedNotes);
       } catch (error) {
-        console.error("Failed to parse notes from localStorage", error);
-        setNotes([]);
+        console.error("Failed to fetch notes:", error);
+        toast({
+          title: "Error Loading Notes",
+          description: "Could not retrieve your notes from the database.",
+          variant: "destructive",
+        });
       }
+      setIsFetchingNotes(false);
     }
-  }, []);
+    loadNotes();
+  }, [toast]);
 
-  useEffect(() => {
-    localStorage.setItem("flownotes", JSON.stringify(notes));
-  }, [notes]);
-
-  const extractTagsFromContent = (content: string): string[] => {
-    const extracted: string[] = [];
-    const regex = /#([^#\s\/]+(?:\/[^#\s\/]+)*)/g;
-    let match;
-    while ((match = regex.exec(content)) !== null) {
-      extracted.push(match[1]);
-    }
-    return Array.from(new Set(extracted)).sort();
-  };
 
   const handleSaveNote = useCallback(async (
     data: { content: string; imageDataUri?: string },
@@ -112,42 +86,43 @@ export default function HomePage() {
     }
     setIsLoading(true);
 
-    const extractedTags = extractTagsFromContent(content);
-    const derivedTitle = deriveTitleFromContent(content);
-
-    if (noteIdToUpdate) {
-      const updatedNote: Note = {
-        id: noteIdToUpdate,
-        title: derivedTitle,
-        content,
-        createdAt: notes.find(n => n.id === noteIdToUpdate)?.createdAt || new Date(),
-        tags: extractedTags,
-        imageDataUri,
-      };
-      setNotes(prevNotes => prevNotes.map(note => note.id === noteIdToUpdate ? updatedNote : note));
-      toast({
-        title: "Note Updated",
-        description: "Your note has been successfully updated.",
-      });
-    } else {
-      const newNote: Note = {
-        id: new Date().toISOString(),
-        title: derivedTitle,
-        content,
-        createdAt: new Date(),
-        tags: extractedTags,
-        imageDataUri,
-      };
-      setNotes(prevNotes => [newNote, ...prevNotes]);
-      toast({
-        title: "Note Saved",
-        description: "Your note has been successfully saved.",
-      });
+    try {
+      if (noteIdToUpdate) {
+        const updatedNoteData = await updateNoteAction(noteIdToUpdate, { content, imageDataUri });
+        if (updatedNoteData) {
+          setNotes(prevNotes => prevNotes.map(note => note.id === noteIdToUpdate ? updatedNoteData : note));
+          toast({
+            title: "Note Updated",
+            description: "Your note has been successfully updated.",
+          });
+        } else {
+          throw new Error("Failed to update note on server");
+        }
+      } else {
+        const newNoteData = await createNoteAction({ content, imageDataUri });
+        if (newNoteData) {
+          setNotes(prevNotes => [newNoteData, ...prevNotes]);
+          toast({
+            title: "Note Saved",
+            description: "Your note has been successfully saved.",
+          });
+        } else {
+          throw new Error("Failed to save note on server");
+        }
+      }
+    } catch (error) {
+        console.error("Error saving note:", error);
+        toast({
+            title: "Error Saving Note",
+            description: (error as Error).message || "Could not save your note. Please try again.",
+            variant: "destructive",
+        });
     }
+
 
     setIsLoading(false);
     setNoteToEdit(null);
-  }, [notes, toast]);
+  }, [toast]); // notes dependency removed as server actions handle state consistency via revalidation
 
   const handleSetNoteToEdit = useCallback((noteId: string) => {
     const note = notes.find(n => n.id === noteId);
@@ -178,13 +153,24 @@ export default function HomePage() {
     setShowDeleteConfirm(true);
   };
 
-  const confirmDeleteNote = () => {
+  const confirmDeleteNote = async () => {
     if (noteIdToDelete) {
-      setNotes(prevNotes => prevNotes.filter(note => note.id !== noteIdToDelete));
-      toast({
-        title: "Note Deleted",
-        description: "Your note has been successfully deleted.",
-      });
+      setIsLoading(true); // Indicate loading for delete operation
+      const result = await deleteNoteAction(noteIdToDelete);
+      setIsLoading(false);
+      if (result.success) {
+        setNotes(prevNotes => prevNotes.filter(note => note.id !== noteIdToDelete));
+        toast({
+          title: "Note Deleted",
+          description: "Your note has been successfully deleted.",
+        });
+      } else {
+         toast({
+          title: "Error Deleting Note",
+          description: "Could not delete your note. Please try again.",
+          variant: "destructive",
+        });
+      }
     }
     setNoteIdToDelete(null);
     setShowDeleteConfirm(false);
@@ -212,6 +198,15 @@ export default function HomePage() {
   ];
 
 
+  if (isFetchingNotes) {
+    return (
+      <div className="flex h-screen items-center justify-center text-muted-foreground">
+        Loading notes...
+      </div>
+    );
+  }
+
+
   return (
     <>
       <div className="flex h-screen bg-background text-foreground font-sans overflow-hidden">
@@ -223,8 +218,8 @@ export default function HomePage() {
           </div>
 
           <div className="flex justify-around text-center text-xs text-muted-foreground pt-2">
-            <div><p className="text-lg font-medium text-foreground">728</p><p>笔记</p></div>
-            <div><p className="text-lg font-medium text-foreground">347</p><p>标签</p></div>
+            <div><p className="text-lg font-medium text-foreground">{notes.length}</p><p>笔记</p></div>
+            <div><p className="text-lg font-medium text-foreground">{allTags.length}</p><p>标签</p></div>
             <div><p className="text-lg font-medium text-foreground">1183</p><p>天</p></div>
           </div>
 
@@ -317,7 +312,7 @@ export default function HomePage() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => setNoteIdToDelete(null)}>Cancel</AlertDialogCancel>
+            <AlertDialogCancel onClick={() => { setShowDeleteConfirm(false); setNoteIdToDelete(null); }}>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={confirmDeleteNote} className="bg-destructive hover:bg-destructive/90 text-destructive-foreground">
               Delete
             </AlertDialogAction>
@@ -327,5 +322,3 @@ export default function HomePage() {
     </>
   );
 }
-
-    
