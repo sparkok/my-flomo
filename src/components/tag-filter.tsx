@@ -91,7 +91,7 @@ const RenderTagNode: React.FC<{
   const handleContentClick = () => {
     if (node.isActualTag) {
       onToggleTag(node.fullPath);
-    } else if (hasChildren) {
+    } else if (hasChildren) { // If not an actual tag but has children, click toggles expansion 
       setIsExpanded(!isExpanded); 
     }
   };
@@ -221,3 +221,4 @@ export default function TagFilter({ allTags, activeTags, onToggleTag, specialTag
     </div>
   );
 }
+
