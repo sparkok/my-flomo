@@ -1,3 +1,4 @@
+
 "use client";
 
 import type { Note } from "@/lib/types";
@@ -39,6 +40,16 @@ export default function HomePage() {
     localStorage.setItem("flownotes", JSON.stringify(notes));
   }, [notes]);
 
+  const extractTagsFromContent = (content: string): string[] => {
+    const extracted: string[] = [];
+    const regex = /#([a-zA-Z0-9]+(?:[/][a-zA-Z0-9]+)*)/g;
+    let match;
+    while ((match = regex.exec(content)) !== null) {
+      extracted.push(match[1]);
+    }
+    return Array.from(new Set(extracted)); // Return unique tags
+  };
+
   const handleAddNote = async (content: string) => {
     if (!content.trim()) {
       toast({
@@ -49,13 +60,20 @@ export default function HomePage() {
       return;
     }
     setIsLoading(true);
+
+    const manuallyExtractedTags = extractTagsFromContent(content);
+
     try {
       const { tags: aiTags } = await generateTags({ text: content });
+      const combinedTags = Array.from(
+        new Set([...manuallyExtractedTags, ...(aiTags || [])])
+      ).sort();
+      
       const newNote: Note = {
         id: new Date().toISOString(),
         content,
         createdAt: new Date(),
-        tags: aiTags || [],
+        tags: combinedTags,
       };
       setNotes((prevNotes) => [newNote, ...prevNotes]);
       toast({
@@ -64,16 +82,17 @@ export default function HomePage() {
       });
     } catch (error) {
       console.error("Error generating tags or saving note:", error);
+      const fallbackTags = Array.from(new Set([...manuallyExtractedTags])).sort();
       const newNoteWithoutAITags: Note = {
         id: new Date().toISOString(),
         content,
         createdAt: new Date(),
-        tags: [],
+        tags: fallbackTags,
       };
       setNotes((prevNotes) => [newNoteWithoutAITags, ...prevNotes]);
       toast({
-        title: "Note Saved (Tagging Failed)",
-        description: "Your note was saved, but AI tagging failed.",
+        title: "Note Saved (AI Tagging Failed)",
+        description: `Note saved with manually extracted tags: ${fallbackTags.join(', ')}. AI tagging failed.`,
         variant: "destructive",
       });
     } finally {
