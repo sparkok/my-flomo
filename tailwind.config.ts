@@ -56,7 +56,8 @@ export default {
   				'5': 'hsl(var(--chart-5))'
   			},
   			sidebar: {
-  				DEFAULT: 'hsl(var(--sidebar-background))',
+  				DEFAULT: 'hsl(var(--sidebar-background))', // Use this for the sidebar's actual background
+          background: 'hsl(var(--sidebar-background))', // alias for clarity
   				foreground: 'hsl(var(--sidebar-foreground))',
   				primary: 'hsl(var(--sidebar-primary))',
   				'primary-foreground': 'hsl(var(--sidebar-primary-foreground))',
@@ -67,9 +68,9 @@ export default {
   			}
   		},
   		borderRadius: {
-  			lg: 'var(--radius)',
-  			md: 'calc(var(--radius) - 2px)',
-  			sm: 'calc(var(--radius) - 4px)'
+  			lg: 'var(--radius)', // e.g., 0.5rem
+  			md: 'calc(var(--radius) - 2px)', // e.g., 0.375rem
+  			sm: 'calc(var(--radius) - 4px)' // e.g., 0.25rem
   		},
   		keyframes: {
   			'accordion-down': {

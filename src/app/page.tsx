@@ -6,12 +6,27 @@ import { useState, useEffect, useMemo, useCallback } from "react";
 import NoteInputForm from "@/components/note-input-form";
 import NoteList from "@/components/note-list";
 import TagFilter from "@/components/tag-filter";
-import ExportNotesButton from "@/components/export-notes-button";
-import { Toaster } from "@/components/ui/toaster";
+import ExportNotesButton from "@/components/export-notes-button"; // Re-styled as link later
+import ActivityHeatmap from "@/components/ActivityHeatmap"; // New component
 import { useToast } from "@/hooks/use-toast";
 import { generateTags } from "@/ai/flows/generate-tags";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { format } from 'date-fns';
+import { 
+  RefreshCw, 
+  Search, 
+  SlidersHorizontal, 
+  BookCopy, 
+  MessageSquare, 
+  CalendarCheck,
+  Package,
+  ShieldAlert,
+  TrendingUp,
+  Settings2, // Placeholder for filter/settings
+  Folder // Default for special tags
+} from "lucide-react";
 
 export default function HomePage() {
   const [notes, setNotes] = useState<Note[]>([]);
@@ -19,6 +34,7 @@ export default function HomePage() {
   const [isLoading, setIsLoading] = useState(false);
   const [noteToEdit, setNoteToEdit] = useState<Note | null>(null);
   const { toast } = useToast();
+  const [currentDate] = useState(new Date()); // For top bar date
 
   useEffect(() => {
     const storedNotes = localStorage.getItem("flownotes");
@@ -42,7 +58,7 @@ export default function HomePage() {
 
   const extractTagsFromContent = (content: string): string[] => {
     const extracted: string[] = [];
-    const regex = /#([^#\s\/]+(?:\/[^#\s\/]+)*)/g; 
+    const regex = /#([^#\s\/]+(?:\/[^#\s\/]+)*)/g;
     let match;
     while ((match = regex.exec(content)) !== null) {
       extracted.push(match[1]);
@@ -75,11 +91,10 @@ export default function HomePage() {
       ).sort();
       
       if (noteIdToUpdate) {
-        // Update existing note
         const updatedNote: Note = {
           id: noteIdToUpdate,
           content,
-          createdAt: notes.find(n => n.id === noteIdToUpdate)?.createdAt || new Date(), // Keep original creation date
+          createdAt: notes.find(n => n.id === noteIdToUpdate)?.createdAt || new Date(),
           tags: combinedTags,
           imageDataUri,
         };
@@ -89,7 +104,6 @@ export default function HomePage() {
           description: "Your note has been successfully updated.",
         });
       } else {
-        // Add new note
         const newNote: Note = {
           id: new Date().toISOString(),
           content,
@@ -133,7 +147,7 @@ export default function HomePage() {
       });
     } finally {
       setIsLoading(false);
-      setNoteToEdit(null); // Clear editing state after save/update
+      setNoteToEdit(null);
     }
   }, [notes, toast]);
 
@@ -141,7 +155,6 @@ export default function HomePage() {
     const note = notes.find(n => n.id === noteId);
     if (note) {
       setNoteToEdit(note);
-      // Optionally scroll to form or give some visual indication
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
   }, [notes]);
@@ -149,7 +162,6 @@ export default function HomePage() {
   const handleCancelEdit = useCallback(() => {
     setNoteToEdit(null);
   }, []);
-
 
   const handleToggleTag = (tag: string) => {
     setActiveTags((prevTags) => {
@@ -166,6 +178,8 @@ export default function HomePage() {
   const allTags = useMemo(() => {
     const tagsSet = new Set<string>();
     notes.forEach(note => note.tags.forEach(tag => tagsSet.add(tag)));
+    // Add special tags if they are not already present from notes
+    ["产品", "故障检测", "成长"].forEach(st => tagsSet.add(st));
     return Array.from(tagsSet).sort();
   }, [notes]);
 
@@ -178,54 +192,108 @@ export default function HomePage() {
     );
   }, [notes, activeTags]);
 
+  const specialTagsConfig = [
+    { name: "产品", icon: Package },
+    { name: "故障检测", icon: ShieldAlert },
+    { name: "成长", icon: TrendingUp },
+  ];
+
+
   return (
-    <div className="flex flex-col min-h-screen bg-background text-foreground font-sans">
-      <header className="sticky top-0 z-10 bg-background/80 backdrop-blur-md shadow-sm">
-        <div className="container mx-auto px-4 py-4 flex flex-col sm:flex-row justify-between items-center gap-4 sm:gap-0">
-          <h1 className="text-3xl font-bold text-primary">FlowNote</h1>
-          <ExportNotesButton notes={notes} />
+    <div className="flex h-screen bg-background text-foreground font-sans overflow-hidden">
+      {/* Sidebar */}
+      <aside className="w-64 bg-sidebar-background p-4 flex flex-col space-y-4 border-r border-sidebar-border fixed top-0 left-0 h-full">
+        <div className="flex items-center space-x-2">
+          <div className="bg-primary text-primary-foreground p-1.5 rounded-md text-xs font-bold">PRO</div>
+          <h1 className="text-xl font-semibold text-foreground">sparkok</h1>
         </div>
-      </header>
 
-      <main className="flex-grow container mx-auto px-4 py-6">
-        <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
-          <aside className="md:col-span-4 lg:col-span-3 space-y-6">
-            <Card className="shadow-lg sticky top-[calc(4rem+24px)]">
-              <CardHeader>
-                <CardTitle className="text-xl">Filter by Tags</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <TagFilter
-                  allTags={allTags}
-                  activeTags={activeTags}
-                  onToggleTag={handleToggleTag}
-                />
-              </CardContent>
-            </Card>
-          </aside>
+        <div className="flex justify-around text-center text-xs text-muted-foreground pt-2">
+          <div><p className="text-lg font-medium text-foreground">728</p><p>笔记</p></div>
+          <div><p className="text-lg font-medium text-foreground">347</p><p>标签</p></div>
+          <div><p className="text-lg font-medium text-foreground">1183</p><p>天</p></div>
+        </div>
+        
+        <ActivityHeatmap />
 
-          <section className="md:col-span-8 lg:col-span-9 space-y-6">
-            <NoteInputForm 
-              onSaveNote={handleSaveNote} 
-              isLoading={isLoading}
-              noteToEdit={noteToEdit}
-              onCancelEdit={handleCancelEdit}
+        <Button variant="default" className="w-full bg-primary hover:bg-accent text-primary-foreground justify-start px-3">
+          <BookCopy className="mr-2 h-4 w-4" />
+          全部笔记
+        </Button>
+        
+        <nav className="flex flex-col space-y-1 text-sm">
+          <Button variant="ghost" className="w-full justify-start text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground px-3">
+            <MessageSquare className="mr-2 h-4 w-4" />
+            微信输入
+          </Button>
+          <Button variant="ghost" className="w-full justify-start text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground px-3">
+            <CalendarCheck className="mr-2 h-4 w-4" />
+            每日回顾
+          </Button>
+        </nav>
+        
+        <Separator className="my-2 bg-sidebar-border"/>
+
+        <div className="flex-grow overflow-y-auto pr-1 -mr-2">
+          <h2 className="text-xs font-semibold text-muted-foreground mb-2 px-2 uppercase">全部标签</h2>
+          <TagFilter
+            allTags={allTags}
+            activeTags={activeTags}
+            onToggleTag={handleToggleTag}
+            specialTagsConfig={specialTagsConfig}
+          />
+        </div>
+
+      </aside>
+
+      {/* Main Content */}
+      <main className="flex-1 flex flex-col ml-64 overflow-y-auto"> {/* ml-64 to offset sidebar */}
+        {/* Top Bar */}
+        <header className="sticky top-0 z-10 bg-background/80 backdrop-blur-md border-b border-border px-6 py-3 flex items-center justify-between">
+          <div className="flex items-center space-x-2 text-sm text-muted-foreground">
+            <span>{format(currentDate, "yyyy-MM-dd")}</span>
+            <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-foreground">
+              <RefreshCw className="h-4 w-4" />
+            </Button>
+          </div>
+          <div className="flex items-center space-x-2 w-1/3">
+            <Search className="h-4 w-4 text-muted-foreground absolute ml-2 pointer-events-none" />
+            <Input 
+              type="search" 
+              placeholder="Ctrl+K" 
+              className="pl-8 pr-2 py-1 h-8 text-sm rounded-md w-full focus-visible:ring-primary" 
             />
-            <Separator />
-            <NoteList 
-              notes={filteredNotes} 
-              onToggleTag={handleToggleTag} 
-              activeTags={activeTags}
-              onEditNote={handleSetNoteToEdit}
-            />
-          </section>
+            <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-foreground">
+              <Settings2 className="h-4 w-4" />
+            </Button>
+          </div>
+        </header>
+
+        {/* Note Input and List Section */}
+        <div className="flex-grow p-6 space-y-6">
+          <NoteInputForm 
+            onSaveNote={handleSaveNote} 
+            isLoading={isLoading}
+            noteToEdit={noteToEdit}
+            onCancelEdit={handleCancelEdit}
+          />
+          
+          <div className="flex items-center justify-between mt-6 mb-4">
+            <h2 className="text-base font-semibold text-muted-foreground">笔记 ({filteredNotes.length})</h2>
+            <div className="flex items-center space-x-3">
+              <button className="text-xs text-muted-foreground hover:text-primary">筛选</button>
+              <ExportNotesButton notes={notes} />
+            </div>
+          </div>
+          
+          <NoteList 
+            notes={filteredNotes} 
+            onToggleTag={handleToggleTag} 
+            activeTags={activeTags}
+            onEditNote={handleSetNoteToEdit}
+          />
         </div>
       </main>
-
-      <footer className="py-6 text-center text-sm text-muted-foreground border-t">
-        <p>&copy; {new Date().getFullYear()} FlowNote. All rights reserved.</p>
-      </footer>
-      <Toaster />
     </div>
   );
 }

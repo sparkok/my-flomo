@@ -1,8 +1,8 @@
 import type { Note } from "@/lib/types";
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { CalendarDays, Tag, Pencil } from "lucide-react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Tag, MoreHorizontal, Pencil } from "lucide-react";
 import { format } from 'date-fns';
 import Image from 'next/image';
 
@@ -15,53 +15,64 @@ interface NoteItemProps {
 
 export default function NoteItem({ note, onToggleTag, activeTags, onEditNote }: NoteItemProps) {
   return (
-    <Card className="shadow-md hover:shadow-lg transition-shadow duration-200 ease-in-out animate-fade-in rounded-lg overflow-hidden">
-      <CardHeader className="pb-3 pt-4 px-5 bg-muted/30 border-b flex flex-row justify-between items-center">
-        <div className="flex items-center text-xs text-muted-foreground">
-          <CalendarDays className="mr-1.5 h-3.5 w-3.5 text-primary" />
-          <span>{format(new Date(note.createdAt), "MMM d, yyyy 'at' h:mm a")}</span>
+    <div className="bg-card p-4 rounded-md border border-border hover:shadow-sm transition-shadow duration-200 ease-in-out animate-fade-in">
+      <div className="flex justify-between items-start mb-2">
+        <span className="text-xs text-muted-foreground">
+          {format(new Date(note.createdAt), "yyyy-MM-dd HH:mm:ss")}
+        </span>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground hover:text-foreground -mr-2 -mt-1">
+              <MoreHorizontal className="h-4 w-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-32">
+            <DropdownMenuItem onClick={() => onEditNote(note.id)}>
+              <Pencil className="mr-2 h-3.5 w-3.5 text-muted-foreground" />
+              Edit
+            </DropdownMenuItem>
+            {/* Add other actions like Delete here */}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+
+      {note.imageDataUri && (
+        <div className="mb-3 rounded-md overflow-hidden border border-muted">
+          <Image 
+            src={note.imageDataUri} 
+            alt="Note image" 
+            width={600}
+            height={400}
+            className="w-full h-auto max-h-72 object-contain rounded-sm"
+            data-ai-hint="note illustration" 
+          />
         </div>
-        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => onEditNote(note.id)} aria-label="Edit note">
-          <Pencil className="h-4 w-4 text-primary" />
-        </Button>
-      </CardHeader>
-      <CardContent className="py-4 px-5">
-        {note.imageDataUri && (
-          <div className="mb-4 rounded-md overflow-hidden border border-muted shadow-sm">
-            <Image 
-              src={note.imageDataUri} 
-              alt="Note image" 
-              width={600}
-              height={400}
-              className="w-full h-auto max-h-96 object-contain rounded-md"
-              data-ai-hint="note illustration" 
-            />
-          </div>
-        )}
-        <p className="text-foreground whitespace-pre-wrap text-base leading-relaxed">{note.content}</p>
-      </CardContent>
+      )}
+
+      <p className="text-foreground whitespace-pre-wrap text-sm leading-relaxed mb-3">{note.content}</p>
+
       {note.tags && note.tags.length > 0 && (
-        <CardFooter className="flex flex-wrap gap-2 pt-3 pb-4 px-5 border-t bg-muted/30">
-          <Tag className="h-4 w-4 text-primary mr-1" />
+        <div className="flex flex-wrap gap-1.5 items-center">
+          {/* <Tag className="h-3.5 w-3.5 text-muted-foreground mr-0.5" /> */}
           {note.tags.map(tag => (
             <Badge
               key={tag}
               variant={activeTags.has(tag) ? "default" : "secondary"}
               onClick={() => onToggleTag(tag)}
               className={`cursor-pointer transition-all duration-150 ease-in-out hover:opacity-80
-                ${activeTags.has(tag) ? 'bg-accent text-accent-foreground hover:bg-accent/90 shadow-sm' : 'bg-secondary text-secondary-foreground hover:bg-secondary/80'}
-                px-2.5 py-0.5 text-xs rounded-full`}
+                ${activeTags.has(tag) ? 'bg-accent/80 text-accent-foreground hover:bg-accent text-xs' : 'bg-muted hover:bg-secondary/70 text-muted-foreground hover:text-secondary-foreground text-xs'}
+                px-2 py-0.5 font-normal rounded-sm`}
               role="button"
               tabIndex={0}
               onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onToggleTag(tag); }}
               aria-pressed={activeTags.has(tag)}
               aria-label={`Tag: ${tag}`}
             >
-              {tag}
+             #{tag}
             </Badge>
           ))}
-        </CardFooter>
+        </div>
       )}
-    </Card>
+    </div>
   );
 }

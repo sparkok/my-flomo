@@ -1,7 +1,8 @@
+
 "use client";
 
 import type { Note } from "@/lib/types";
-import { Button } from "@/components/ui/button";
+// import { Button } from "@/components/ui/button"; // No longer a full button
 import { Download } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -24,30 +25,33 @@ export default function ExportNotesButton({ notes }: ExportNotesButtonProps) {
 
     const dataStr = JSON.stringify(notes.map(note => ({
       ...note,
-      createdAt: note.createdAt.toISOString() // Ensure date is in standard format
+      createdAt: note.createdAt.toISOString() 
     })), null, 2);
     const dataBlob = new Blob([dataStr], { type: 'application/json' });
     
-    const exportFileDefaultName = `flownotes_export_${new Date().toISOString().split('T')[0]}.json`;
+    const exportFileDefaultName = `sparkok_notes_${new Date().toISOString().split('T')[0]}.json`;
 
     const linkElement = document.createElement('a');
     linkElement.href = URL.createObjectURL(dataBlob);
     linkElement.download = exportFileDefaultName;
-    document.body.appendChild(linkElement); // Required for Firefox
+    document.body.appendChild(linkElement); 
     linkElement.click();
     document.body.removeChild(linkElement);
-    URL.revokeObjectURL(linkElement.href); // Clean up
+    URL.revokeObjectURL(linkElement.href); 
 
     toast({
       title: "Export Successful",
-      description: `Your notes have been exported to ${exportFileDefaultName}.`,
+      description: `Notes exported to ${exportFileDefaultName}.`,
     });
   };
 
   return (
-    <Button onClick={handleExport} variant="outline" size="default" className="rounded-md">
-      <Download className="mr-2 h-4 w-4" />
-      Export Notes
-    </Button>
+    <button 
+      onClick={handleExport} 
+      className="text-xs text-muted-foreground hover:text-primary flex items-center"
+    >
+      <Download className="mr-1 h-3.5 w-3.5" />
+      导出
+    </button>
   );
 }
