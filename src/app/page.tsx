@@ -51,6 +51,7 @@ export default function HomePage() {
   const [currentDate, setCurrentDate] = useState<Date | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [noteIdToDelete, setNoteIdToDelete] = useState<string | null>(null);
+  const [searchTerm, setSearchTerm] = useState<string>("");
 
   useEffect(() => {
     setCurrentDate(new Date());
@@ -66,7 +67,6 @@ export default function HomePage() {
             const parsedDbNotes: Omit<Note, 'tags' | 'title'> & { tagsJson?: string, tags?: string[], title?:string }[] = JSON.parse(storedNotes);
             fetchedNotes = parsedDbNotes.map(note => {
               const content = note.content || "";
-              // Ensure tags are an array
               let currentTags: string[];
               if (Array.isArray(note.tags)) {
                 currentTags = note.tags;
@@ -74,7 +74,7 @@ export default function HomePage() {
                 try {
                   currentTags = JSON.parse(note.tagsJson);
                 } catch {
-                  currentTags = extractTagsFromContent(content); // Fallback
+                  currentTags = extractTagsFromContent(content); 
                 }
               } else {
                  currentTags = extractTagsFromContent(content);
@@ -82,7 +82,7 @@ export default function HomePage() {
               
               return {
                 ...note,
-                id: note.id || crypto.randomUUID(), // Ensure ID exists for older notes
+                id: note.id || crypto.randomUUID(),
                 title: note.title !== undefined ? note.title : deriveTitleFromContent(content),
                 content: content,
                 tags: currentTags,
@@ -109,7 +109,6 @@ export default function HomePage() {
   }, [toast]);
 
   const saveNotesToLocalStorage = useCallback((updatedNotes: Note[]) => {
-    // For localStorage, we store tagsJson string representation for consistency with DB model expectation
     const notesToStore = updatedNotes.map(note => ({...note, tagsJson: JSON.stringify(note.tags)}));
     localStorage.setItem(STORAGE_KEY, JSON.stringify(notesToStore));
   }, []);
@@ -146,7 +145,7 @@ export default function HomePage() {
             toast({ title: "Note Saved", description: "Your note has been successfully saved to the database." });
           } else { throw new Error("Failed to save note on server"); }
         }
-      } else { // localStorage mode
+      } else { 
         const title = deriveTitleFromContent(content);
         const tags = extractTagsFromContent(content);
         let updatedNotes;
@@ -158,7 +157,7 @@ export default function HomePage() {
             content,
             tags,
             imageDataUri,
-            createdAt: notes.find(n => n.id === noteIdToUpdate)?.createdAt || new Date(), // Keep original createdAt
+            createdAt: notes.find(n => n.id === noteIdToUpdate)?.createdAt || new Date(), 
             updatedAt: new Date(),
           };
           updatedNotes = notes.map(note => note.id === noteIdToUpdate ? updatedNote : note);
@@ -228,6 +227,9 @@ export default function HomePage() {
       if (DATA_STORAGE_MODE === "database") {
         const result = await deleteNoteDB(noteIdToDelete);
         success = result.success;
+        if (success) {
+           setNotes(prevNotes => prevNotes.filter(note => note.id !== noteIdToDelete));
+        }
       } else {
         const updatedNotes = notes.filter(note => note.id !== noteIdToDelete);
         setNotes(updatedNotes);
@@ -260,13 +262,24 @@ export default function HomePage() {
   }, [notes]);
 
   const filteredNotes = useMemo(() => {
-    if (activeTags.size === 0) {
-      return notes;
+    let notesToFilter = notes;
+
+    if (activeTags.size > 0) {
+      notesToFilter = notesToFilter.filter(note =>
+        Array.from(activeTags).every(activeTag => note.tags.includes(activeTag))
+      );
     }
-    return notes.filter(note =>
-      Array.from(activeTags).every(activeTag => note.tags.includes(activeTag))
-    );
-  }, [notes, activeTags]);
+
+    if (searchTerm.trim() !== "") {
+      const lowercasedSearchTerm = searchTerm.toLowerCase();
+      notesToFilter = notesToFilter.filter(note =>
+        note.content.toLowerCase().includes(lowercasedSearchTerm) ||
+        (note.title && note.title.toLowerCase().includes(lowercasedSearchTerm))
+      );
+    }
+
+    return notesToFilter;
+  }, [notes, activeTags, searchTerm]);
 
   const specialTagsConfig = [
     { name: "产品", icon: Package },
@@ -340,8 +353,10 @@ export default function HomePage() {
               <Search className="h-4 w-4 text-muted-foreground absolute ml-2 pointer-events-none" />
               <Input
                 type="search"
-                placeholder="Ctrl+K"
+                placeholder="Search notes... (Ctrl+K)"
                 className="pl-8 pr-2 py-1 h-8 text-sm rounded-md w-full focus-visible:ring-primary"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
               />
               <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-foreground">
                 <Settings2 className="h-4 w-4" />
