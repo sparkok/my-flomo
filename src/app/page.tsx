@@ -34,40 +34,85 @@ import {
   TrendingUp,
   Folder
 } from "lucide-react";
-import { getNotes, createNote, updateNote, deleteNote as deleteNoteAction } from "@/app/actions/noteActions";
+import { getNotesDB, createNoteDB, updateNoteDB, deleteNoteDB } from "@/app/actions/noteActions";
+import { deriveTitleFromContent, extractTagsFromContent } from "@/lib/noteUtils";
+
+const STORAGE_KEY = "sparkok_notes";
+const DATA_STORAGE_MODE = process.env.NEXT_PUBLIC_DATA_STORAGE_MODE || "localStorage";
 
 
 export default function HomePage() {
   const [notes, setNotes] = useState<Note[]>([]);
   const [activeTags, setActiveTags] = useState<Set<string>>(new Set());
-  const [isLoading, setIsLoading] = useState(false); // For form submission
-  const [isFetchingNotes, setIsFetchingNotes] = useState(true); // For initial load
+  const [isLoading, setIsLoading] = useState(false); 
+  const [isFetchingNotes, setIsFetchingNotes] = useState(true);
   const [noteToEdit, setNoteToEdit] = useState<Note | null>(null);
   const { toast } = useToast();
   const [currentDate, setCurrentDate] = useState<Date | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [noteIdToDelete, setNoteIdToDelete] = useState<string | null>(null);
 
-
   useEffect(() => {
     setCurrentDate(new Date());
     async function loadNotes() {
       setIsFetchingNotes(true);
       try {
-        const fetchedNotes = await getNotes();
+        let fetchedNotes: Note[] = [];
+        if (DATA_STORAGE_MODE === "database") {
+          fetchedNotes = await getNotesDB();
+        } else {
+          const storedNotes = localStorage.getItem(STORAGE_KEY);
+          if (storedNotes) {
+            const parsedDbNotes: Omit<Note, 'tags' | 'title'> & { tagsJson?: string, tags?: string[], title?:string }[] = JSON.parse(storedNotes);
+            fetchedNotes = parsedDbNotes.map(note => {
+              const content = note.content || "";
+              // Ensure tags are an array
+              let currentTags: string[];
+              if (Array.isArray(note.tags)) {
+                currentTags = note.tags;
+              } else if (typeof note.tagsJson === 'string') {
+                try {
+                  currentTags = JSON.parse(note.tagsJson);
+                } catch {
+                  currentTags = extractTagsFromContent(content); // Fallback
+                }
+              } else {
+                 currentTags = extractTagsFromContent(content);
+              }
+              
+              return {
+                ...note,
+                id: note.id || crypto.randomUUID(), // Ensure ID exists for older notes
+                title: note.title !== undefined ? note.title : deriveTitleFromContent(content),
+                content: content,
+                tags: currentTags,
+                createdAt: new Date(note.createdAt),
+                updatedAt: new Date(note.updatedAt),
+                imageDataUri: note.imageDataUri
+              };
+            }).sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+          }
+        }
         setNotes(fetchedNotes);
       } catch (error) {
-        console.error("Failed to fetch notes:", error);
+        console.error(`Failed to fetch notes (mode: ${DATA_STORAGE_MODE}):`, error);
         toast({
           title: "Error Loading Notes",
-          description: "Could not retrieve your notes from the database.",
+          description: `Could not retrieve your notes. Using ${DATA_STORAGE_MODE} storage.`,
           variant: "destructive",
         });
+        setNotes([]);
       }
       setIsFetchingNotes(false);
     }
     loadNotes();
   }, [toast]);
+
+  const saveNotesToLocalStorage = useCallback((updatedNotes: Note[]) => {
+    // For localStorage, we store tagsJson string representation for consistency with DB model expectation
+    const notesToStore = updatedNotes.map(note => ({...note, tagsJson: JSON.stringify(note.tags)}));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(notesToStore));
+  }, []);
 
 
   const handleSaveNote = useCallback(async (
@@ -87,28 +132,52 @@ export default function HomePage() {
     setIsLoading(true);
 
     try {
-      if (noteIdToUpdate) {
-        const updatedNoteData = await updateNoteAction(noteIdToUpdate, { content, imageDataUri });
-        if (updatedNoteData) {
-          setNotes(prevNotes => prevNotes.map(note => note.id === noteIdToUpdate ? updatedNoteData : note));
-          toast({
-            title: "Note Updated",
-            description: "Your note has been successfully updated.",
-          });
+      if (DATA_STORAGE_MODE === "database") {
+        if (noteIdToUpdate) {
+          const updatedNoteData = await updateNoteDB(noteIdToUpdate, { content, imageDataUri });
+          if (updatedNoteData) {
+            setNotes(prevNotes => prevNotes.map(note => note.id === noteIdToUpdate ? updatedNoteData : note));
+            toast({ title: "Note Updated", description: "Your note has been successfully updated in the database." });
+          } else { throw new Error("Failed to update note on server"); }
         } else {
-          throw new Error("Failed to update note on server");
+          const newNoteData = await createNoteDB({ content, imageDataUri });
+          if (newNoteData) {
+            setNotes(prevNotes => [newNoteData, ...prevNotes]);
+            toast({ title: "Note Saved", description: "Your note has been successfully saved to the database." });
+          } else { throw new Error("Failed to save note on server"); }
         }
-      } else {
-        const newNoteData = await createNoteAction({ content, imageDataUri });
-        if (newNoteData) {
-          setNotes(prevNotes => [newNoteData, ...prevNotes]);
-          toast({
-            title: "Note Saved",
-            description: "Your note has been successfully saved.",
-          });
+      } else { // localStorage mode
+        const title = deriveTitleFromContent(content);
+        const tags = extractTagsFromContent(content);
+        let updatedNotes;
+
+        if (noteIdToUpdate) {
+          const updatedNote: Note = {
+            id: noteIdToUpdate,
+            title,
+            content,
+            tags,
+            imageDataUri,
+            createdAt: notes.find(n => n.id === noteIdToUpdate)?.createdAt || new Date(), // Keep original createdAt
+            updatedAt: new Date(),
+          };
+          updatedNotes = notes.map(note => note.id === noteIdToUpdate ? updatedNote : note);
+          toast({ title: "Note Updated", description: "Your note has been updated in local storage." });
         } else {
-          throw new Error("Failed to save note on server");
+          const newNote: Note = {
+            id: crypto.randomUUID(),
+            title,
+            content,
+            tags,
+            imageDataUri,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          };
+          updatedNotes = [newNote, ...notes];
+          toast({ title: "Note Saved", description: "Your note has been saved to local storage." });
         }
+        setNotes(updatedNotes);
+        saveNotesToLocalStorage(updatedNotes);
       }
     } catch (error) {
         console.error("Error saving note:", error);
@@ -119,10 +188,9 @@ export default function HomePage() {
         });
     }
 
-
     setIsLoading(false);
     setNoteToEdit(null);
-  }, [toast]); // notes dependency removed as server actions handle state consistency via revalidation
+  }, [notes, toast, saveNotesToLocalStorage]);
 
   const handleSetNoteToEdit = useCallback((noteId: string) => {
     const note = notes.find(n => n.id === noteId);
@@ -155,14 +223,23 @@ export default function HomePage() {
 
   const confirmDeleteNote = async () => {
     if (noteIdToDelete) {
-      setIsLoading(true); // Indicate loading for delete operation
-      const result = await deleteNoteAction(noteIdToDelete);
+      setIsLoading(true);
+      let success = false;
+      if (DATA_STORAGE_MODE === "database") {
+        const result = await deleteNoteDB(noteIdToDelete);
+        success = result.success;
+      } else {
+        const updatedNotes = notes.filter(note => note.id !== noteIdToDelete);
+        setNotes(updatedNotes);
+        saveNotesToLocalStorage(updatedNotes);
+        success = true;
+      }
       setIsLoading(false);
-      if (result.success) {
-        setNotes(prevNotes => prevNotes.filter(note => note.id !== noteIdToDelete));
+
+      if (success) {
         toast({
           title: "Note Deleted",
-          description: "Your note has been successfully deleted.",
+          description: `Your note has been successfully deleted from ${DATA_STORAGE_MODE}.`,
         });
       } else {
          toast({
@@ -201,11 +278,10 @@ export default function HomePage() {
   if (isFetchingNotes) {
     return (
       <div className="flex h-screen items-center justify-center text-muted-foreground">
-        Loading notes...
+        Loading notes... ({DATA_STORAGE_MODE} mode)
       </div>
     );
   }
-
 
   return (
     <>

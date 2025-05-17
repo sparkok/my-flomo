@@ -1,40 +1,12 @@
+
 'use server';
 
 import prisma from '@/lib/prisma';
 import type { Note } from '@/lib/types';
 import { revalidatePath } from 'next/cache';
+import { deriveTitleFromContent, extractTagsFromContent } from '@/lib/noteUtils';
 
-// Helper function to derive title from content
-const deriveTitleFromContent = (content: string): string => {
-  if (!content) return "";
-  const lines = content.split('\n');
-  for (const line of lines) {
-    let processedLine = line;
-    // Remove [[note:ID]] links
-    processedLine = processedLine.replace(/\[\[note:[^\]]+\]\]/g, '');
-    // Remove #tags
-    processedLine = processedLine.replace(/#([^#\s\/]+(?:\/[^#\s\/]+)*)/g, '');
-    processedLine = processedLine.trim();
-    if (processedLine.length > 0) {
-      return processedLine;
-    }
-  }
-  return ""; // Return empty if no suitable line found
-};
-
-// Helper function to extract tags from content
-const extractTagsFromContent = (content: string): string[] => {
-  const extracted: string[] = [];
-  const regex = /#([^#\s\/]+(?:\/[^#\s\/]+)*)/g;
-  let match;
-  while ((match = regex.exec(content)) !== null) {
-    extracted.push(match[1]);
-  }
-  return Array.from(new Set(extracted)).sort();
-};
-
-
-export async function getNotes(): Promise<Note[]> {
+export async function getNotesDB(): Promise<Note[]> {
   try {
     const dbNotes = await prisma.note.findMany({
       orderBy: {
@@ -43,14 +15,12 @@ export async function getNotes(): Promise<Note[]> {
     });
     return dbNotes.map(note => ({
       ...note,
-      tags: JSON.parse(note.tagsJson),
-      // Ensure Date objects, Prisma might return strings depending on context/driver
+      tags: JSON.parse(note.tagsJson), // Tags are stored as JSON string
       createdAt: new Date(note.createdAt),
       updatedAt: new Date(note.updatedAt),
     }));
   } catch (error) {
-    console.error("Failed to fetch notes:", error);
-    // Consider more robust error handling or re-throwing for client to handle
+    console.error("Failed to fetch notes from DB:", error);
     return [];
   }
 }
@@ -60,7 +30,7 @@ interface CreateNoteInput {
   imageDataUri?: string;
 }
 
-export async function createNote(data: CreateNoteInput): Promise<Note | null> {
+export async function createNoteDB(data: CreateNoteInput): Promise<Note | null> {
   const title = deriveTitleFromContent(data.content);
   const tags = extractTagsFromContent(data.content);
 
@@ -69,8 +39,9 @@ export async function createNote(data: CreateNoteInput): Promise<Note | null> {
       data: {
         title,
         content: data.content,
-        tagsJson: JSON.stringify(tags),
+        tagsJson: JSON.stringify(tags), // Store tags as JSON string
         imageDataUri: data.imageDataUri,
+        // createdAt and updatedAt are handled by Prisma's default
       },
     });
     revalidatePath('/');
@@ -81,7 +52,7 @@ export async function createNote(data: CreateNoteInput): Promise<Note | null> {
       updatedAt: new Date(newDbNote.updatedAt),
     };
   } catch (error) {
-    console.error("Failed to create note:", error);
+    console.error("Failed to create note in DB:", error);
     return null;
   }
 }
@@ -91,7 +62,7 @@ interface UpdateNoteInput {
   imageDataUri?: string;
 }
 
-export async function updateNote(id: string, data: UpdateNoteInput): Promise<Note | null> {
+export async function updateNoteDB(id: string, data: UpdateNoteInput): Promise<Note | null> {
   const title = deriveTitleFromContent(data.content);
   const tags = extractTagsFromContent(data.content);
 
@@ -101,7 +72,7 @@ export async function updateNote(id: string, data: UpdateNoteInput): Promise<Not
       data: {
         title,
         content: data.content,
-        tagsJson: JSON.stringify(tags),
+        tagsJson: JSON.stringify(tags), // Store tags as JSON string
         imageDataUri: data.imageDataUri,
         updatedAt: new Date(), // Explicitly set updatedAt
       },
@@ -113,13 +84,14 @@ export async function updateNote(id: string, data: UpdateNoteInput): Promise<Not
       createdAt: new Date(updatedDbNote.createdAt),
       updatedAt: new Date(updatedDbNote.updatedAt),
     };
-  } catch (error) {
-    console.error("Failed to update note:", error);
+  } catch (error)
+    {
+    console.error(`Failed to update note ${id} in DB:`, error);
     return null;
   }
 }
 
-export async function deleteNote(id: string): Promise<{ success: boolean }> {
+export async function deleteNoteDB(id: string): Promise<{ success: boolean }> {
   try {
     await prisma.note.delete({
       where: { id },
@@ -127,7 +99,7 @@ export async function deleteNote(id: string): Promise<{ success: boolean }> {
     revalidatePath('/');
     return { success: true };
   } catch (error) {
-    console.error("Failed to delete note:", error);
+    console.error(`Failed to delete note ${id} from DB:`, error);
     return { success: false };
   }
 }
