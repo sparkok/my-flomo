@@ -42,7 +42,8 @@ export default function HomePage() {
 
   const extractTagsFromContent = (content: string): string[] => {
     const extracted: string[] = [];
-    const regex = /#([a-zA-Z0-9]+(?:[/][a-zA-Z0-9]+)*)/g;
+    // Updated regex to support a wider range of characters, including non-ASCII for tags like #书籍/科技
+    const regex = /#([^#\s/]+(?:\/[^#\s/]+)*)/g;
     let match;
     while ((match = regex.exec(content)) !== null) {
       extracted.push(match[1]);
