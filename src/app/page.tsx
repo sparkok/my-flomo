@@ -9,7 +9,7 @@ import TagFilter from "@/components/tag-filter";
 import ExportNotesButton from "@/components/export-notes-button"; 
 import ActivityHeatmap from "@/components/ActivityHeatmap"; 
 import { useToast } from "@/hooks/use-toast";
-import { generateTags } from "@/ai/flows/generate-tags";
+// Removed: import { generateTags } from "@/ai/flows/generate-tags"; 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
@@ -37,10 +37,10 @@ import {
   Folder 
 } from "lucide-react";
 
-const extractTitleFromContent = (content: string): string => {
+const deriveTitleFromContent = (content: string): string => {
   if (!content) return "";
   const firstLine = content.split('\n')[0];
-  // Regex to remove tags like #tag or #some/path/tag
+  // Regex to remove tags like #tag or #some/path/tag from the first line
   const titleWithoutTags = firstLine.replace(/#([^#\s\/]+(?:\/[^#\s\/]+)*)/g, '').trim();
   return titleWithoutTags;
 };
@@ -64,7 +64,7 @@ export default function HomePage() {
       try {
         const parsedNotes: Note[] = JSON.parse(storedNotes).map((note: any) => ({
           ...note,
-          title: note.title || extractTitleFromContent(note.content), // Ensure title exists
+          title: note.title || deriveTitleFromContent(note.content),
           createdAt: new Date(note.createdAt),
         }));
         setNotes(parsedNotes);
@@ -86,7 +86,7 @@ export default function HomePage() {
     while ((match = regex.exec(content)) !== null) {
       extracted.push(match[1]);
     }
-    return Array.from(new Set(extracted));
+    return Array.from(new Set(extracted)).sort();
   };
 
   const handleSaveNote = useCallback(async (
@@ -105,78 +105,42 @@ export default function HomePage() {
     }
     setIsLoading(true);
 
-    const manuallyExtractedTags = extractTagsFromContent(content);
-    const derivedTitle = extractTitleFromContent(content);
-
-    try {
-      const { tags: aiTags } = await generateTags({ text: content });
-      const combinedTags = Array.from(
-        new Set([...manuallyExtractedTags, ...(aiTags || [])])
-      ).sort();
-      
-      if (noteIdToUpdate) {
-        const updatedNote: Note = {
-          id: noteIdToUpdate,
-          title: derivedTitle,
-          content,
-          createdAt: notes.find(n => n.id === noteIdToUpdate)?.createdAt || new Date(),
-          tags: combinedTags,
-          imageDataUri,
-        };
-        setNotes(prevNotes => prevNotes.map(note => note.id === noteIdToUpdate ? updatedNote : note));
-        toast({
-          title: "Note Updated",
-          description: "Your note has been successfully updated.",
-        });
-      } else {
-        const newNote: Note = {
-          id: new Date().toISOString(),
-          title: derivedTitle,
-          content,
-          createdAt: new Date(),
-          tags: combinedTags,
-          imageDataUri,
-        };
-        setNotes(prevNotes => [newNote, ...prevNotes]);
-        toast({
-          title: "Note Saved",
-          description: "Your note has been successfully saved.",
-        });
-      }
-    } catch (error) {
-      console.error("Error generating tags or saving/updating note:", error);
-      const fallbackTags = Array.from(new Set([...manuallyExtractedTags])).sort();
-      
-      if (noteIdToUpdate) {
-        const updatedNoteWithoutAITags: Note = {
-          id: noteIdToUpdate,
-          title: derivedTitle,
-          content,
-          createdAt: notes.find(n => n.id === noteIdToUpdate)?.createdAt || new Date(),
-          tags: fallbackTags,
-          imageDataUri,
-        };
-        setNotes(prevNotes => prevNotes.map(note => note.id === noteIdToUpdate ? updatedNoteWithoutAITags : note));
-      } else {
-        const newNoteWithoutAITags: Note = {
-          id: new Date().toISOString(),
-          title: derivedTitle,
-          content,
-          createdAt: new Date(),
-          tags: fallbackTags,
-          imageDataUri,
-        };
-        setNotes(prevNotes => [newNoteWithoutAITags, ...prevNotes]);
-      }
+    const extractedTags = extractTagsFromContent(content);
+    const derivedTitle = deriveTitleFromContent(content);
+    
+    if (noteIdToUpdate) {
+      const updatedNote: Note = {
+        id: noteIdToUpdate,
+        title: derivedTitle,
+        content,
+        createdAt: notes.find(n => n.id === noteIdToUpdate)?.createdAt || new Date(),
+        tags: extractedTags,
+        imageDataUri,
+      };
+      setNotes(prevNotes => prevNotes.map(note => note.id === noteIdToUpdate ? updatedNote : note));
       toast({
-        title: noteIdToUpdate ? "Note Updated (AI Tagging Failed)" : "Note Saved (AI Tagging Failed)",
-        description: `Note saved with manually extracted tags: ${fallbackTags.join(', ')}. AI tagging failed.`,
-        variant: "destructive",
+        title: "Note Updated",
+        description: "Your note has been successfully updated.",
       });
-    } finally {
-      setIsLoading(false);
-      setNoteToEdit(null);
+    } else {
+      const newNote: Note = {
+        id: new Date().toISOString(),
+        title: derivedTitle,
+        content,
+        createdAt: new Date(),
+        tags: extractedTags,
+        imageDataUri,
+      };
+      setNotes(prevNotes => [newNote, ...prevNotes]);
+      toast({
+        title: "Note Saved",
+        description: "Your note has been successfully saved.",
+      });
     }
+
+    setIsLoading(false);
+    setNoteToEdit(null);
+    // If not editing (i.e., creating a new note), clear the form - NoteInputForm handles this itself via useEffect on noteToEdit
   }, [notes, toast]);
 
   const handleSetNoteToEdit = useCallback((noteId: string) => {
@@ -223,7 +187,7 @@ export default function HomePage() {
   const allTags = useMemo(() => {
     const tagsSet = new Set<string>();
     notes.forEach(note => note.tags.forEach(tag => tagsSet.add(tag)));
-    ["产品", "故障检测", "成长"].forEach(st => tagsSet.add(st));
+    ["产品", "故障检测", "成长"].forEach(st => tagsSet.add(st)); // Keep these as potential special tags
     return Array.from(tagsSet).sort();
   }, [notes]);
 
