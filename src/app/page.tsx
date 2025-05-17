@@ -17,14 +17,13 @@ import { format } from 'date-fns';
 import { 
   RefreshCw, 
   Search, 
-  SlidersHorizontal, 
+  Settings2, // Changed from SlidersHorizontal
   BookCopy, 
   MessageSquare, 
   CalendarCheck,
   Package,
   ShieldAlert,
   TrendingUp,
-  Settings2, // Placeholder for filter/settings
   Folder // Default for special tags
 } from "lucide-react";
 
@@ -34,9 +33,11 @@ export default function HomePage() {
   const [isLoading, setIsLoading] = useState(false);
   const [noteToEdit, setNoteToEdit] = useState<Note | null>(null);
   const { toast } = useToast();
-  const [currentDate] = useState(new Date()); // For top bar date
+  const [currentDate, setCurrentDate] = useState<Date | null>(null);
+
 
   useEffect(() => {
+    setCurrentDate(new Date());
     const storedNotes = localStorage.getItem("flownotes");
     if (storedNotes) {
       try {
@@ -251,7 +252,7 @@ export default function HomePage() {
         {/* Top Bar */}
         <header className="sticky top-0 z-10 bg-background/80 backdrop-blur-md border-b border-border px-6 py-3 flex items-center justify-between">
           <div className="flex items-center space-x-2 text-sm text-muted-foreground">
-            <span>{format(currentDate, "yyyy-MM-dd")}</span>
+            {currentDate !== null ? <span>{format(currentDate, "yyyy-MM-dd")}</span> : <span>Loading date...</span>}
             <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-foreground">
               <RefreshCw className="h-4 w-4" />
             </Button>
@@ -276,6 +277,7 @@ export default function HomePage() {
             isLoading={isLoading}
             noteToEdit={noteToEdit}
             onCancelEdit={handleCancelEdit}
+            allTags={allTags} // Pass allTags to NoteInputForm
           />
           
           <div className="flex items-center justify-between mt-6 mb-4">
@@ -297,3 +299,5 @@ export default function HomePage() {
     </div>
   );
 }
+
+    

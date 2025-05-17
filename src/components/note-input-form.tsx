@@ -5,6 +5,7 @@ import { useState, useRef, useEffect, type ChangeEvent, type FormEvent } from "r
 import type { Note } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { Send, Loader2, ImagePlus, XCircle, RotateCcw, Hash, Type, List, AtSign, Globe } from "lucide-react";
 import Image from 'next/image';
 import { useToast } from "@/hooks/use-toast";
@@ -14,22 +15,35 @@ interface NoteInputFormProps {
   isLoading: boolean;
   noteToEdit: Note | null;
   onCancelEdit: () => void;
+  allTags: string[]; // Added prop for all available tags
 }
 
-export default function NoteInputForm({ onSaveNote, isLoading, noteToEdit, onCancelEdit }: NoteInputFormProps) {
+export default function NoteInputForm({ 
+  onSaveNote, 
+  isLoading, 
+  noteToEdit, 
+  onCancelEdit,
+  allTags 
+}: NoteInputFormProps) {
   const [content, setContent] = useState("");
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const textareaRef = useRef<HTMLTextAreaElement>(null); // Ref for the textarea
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const { toast } = useToast();
+
+  const [isSuggestionsOpen, setIsSuggestionsOpen] = useState(false);
+  const [currentSuggestions, setCurrentSuggestions] = useState<string[]>([]);
+  const [tagQueryInfo, setTagQueryInfo] = useState<{ query: string, range: { start: number, end: number } } | null>(null);
+
 
   useEffect(() => {
     if (noteToEdit) {
       setContent(noteToEdit.content);
       setImagePreview(noteToEdit.imageDataUri || null);
-      setImageFile(null); // Clear any staged new image file
-      textareaRef.current?.focus(); // Focus textarea when editing
+      setImageFile(null); 
+      textareaRef.current?.focus();
+      setIsSuggestionsOpen(false); // Close suggestions when starting an edit
     } else {
       setContent("");
       setImagePreview(null);
@@ -59,7 +73,6 @@ export default function NoteInputForm({ onSaveNote, isLoading, noteToEdit, onCan
       reader.readAsDataURL(file);
     } else {
       setImageFile(null);
-      // If no file is selected, and we are editing, revert to the original image if it exists
       setImagePreview(noteToEdit?.imageDataUri || null);
     }
   };
@@ -74,7 +87,8 @@ export default function NoteInputForm({ onSaveNote, isLoading, noteToEdit, onCan
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    if (!content.trim() && !imageFile && !imagePreview) { // Check imagePreview as well for existing images
+    setIsSuggestionsOpen(false); // Close suggestions on submit
+    if (!content.trim() && !imageFile && !imagePreview) {
         toast({
             title: "Empty Note",
             description: "Cannot save an empty note without content or an image.",
@@ -91,66 +105,165 @@ export default function NoteInputForm({ onSaveNote, isLoading, noteToEdit, onCan
         reader.onerror = reject;
         reader.readAsDataURL(imageFile);
       });
-    } else if (imagePreview) { // If no new file, but there's a preview (could be from noteToEdit)
+    } else if (imagePreview) {
        finalImageDataUri = imagePreview;
     }
 
     await onSaveNote({ content, imageDataUri: finalImageDataUri }, noteToEdit?.id);
 
-    if (!noteToEdit) { // Only clear if it's a new note, not an edit
+    if (!noteToEdit) {
         setContent("");
         removeImage();
     }
-    // For edits, the form is cleared by the useEffect when noteToEdit becomes null
   };
 
   const handleCancel = () => {
+    setIsSuggestionsOpen(false); // Close suggestions on cancel
     onCancelEdit();
-    // Form clearing is handled by useEffect when noteToEdit changes
   };
 
+  const handleTextareaChange = (event: ChangeEvent<HTMLTextAreaElement>) => {
+    const newContent = event.target.value;
+    setContent(newContent);
+
+    const textarea = textareaRef.current;
+    if (textarea) {
+      const cursorPos = textarea.selectionStart;
+      const textBeforeCursor = newContent.substring(0, cursorPos);
+      const tagMatch = textBeforeCursor.match(/#([\w\/-]*)$/); // Regex to find # followed by word characters, /, -
+
+      if (tagMatch && tagMatch[0].length > 0) { // Ensure there's at least '#'
+        const query = tagMatch[1]; // This is the part after #
+        const filtered = allTags.filter(t => t.toLowerCase().startsWith(query.toLowerCase()));
+        
+        if (filtered.length > 0) {
+          setCurrentSuggestions(filtered);
+          setTagQueryInfo({ query: tagMatch[0], range: { start: tagMatch.index!, end: cursorPos } });
+          setIsSuggestionsOpen(true);
+        } else {
+          setIsSuggestionsOpen(false);
+        }
+      } else {
+        setIsSuggestionsOpen(false);
+      }
+    }
+  };
+
+  const handleSelectTag = (tag: string) => {
+    const textarea = textareaRef.current;
+    if (textarea && tagQueryInfo) {
+      const { range } = tagQueryInfo;
+      const currentVal = content;
+      
+      const before = currentVal.substring(0, range.start);
+      const after = currentVal.substring(range.end);
+      
+      const newText = `${before}#${tag} ${after}`; // Add #, selected tag, and a space
+      setContent(newText);
+      setIsSuggestionsOpen(false);
+      setTagQueryInfo(null);
+
+      // Focus and set cursor after the inserted tag + space
+      requestAnimationFrame(() => {
+        textarea.focus();
+        const newCursorPos = range.start + 1 + tag.length + 1;
+        textarea.setSelectionRange(newCursorPos, newCursorPos);
+      });
+    }
+  };
+  
   const handleInsertHashtag = () => {
     if (textareaRef.current) {
       const textarea = textareaRef.current;
       const start = textarea.selectionStart;
       const end = textarea.selectionEnd;
-      const newContent = content.substring(0, start) + "#" + content.substring(end);
-      setContent(newContent);
+      const newText = content.substring(0, start) + "#" + content.substring(end);
+      setContent(newText);
+      setIsSuggestionsOpen(false); // Close suggestions if open
 
-      // After state update, focus and set cursor position
       requestAnimationFrame(() => {
         textarea.focus();
         textarea.setSelectionRange(start + 1, start + 1);
+         // Manually trigger suggestion update after inserting #
+        const textBeforeCursor = newText.substring(0, start + 1);
+        const tagMatch = textBeforeCursor.match(/#([\w\/-]*)$/);
+        if (tagMatch) {
+            const query = tagMatch[1];
+            const filtered = allTags.filter(t => t.toLowerCase().startsWith(query.toLowerCase()));
+            if (filtered.length > 0) {
+                setCurrentSuggestions(filtered);
+                setTagQueryInfo({ query: tagMatch[0], range: { start: tagMatch.index!, end: start + 1 } });
+                setIsSuggestionsOpen(true);
+            }
+        }
       });
     }
   };
 
+
   return (
     <div className="bg-card p-4 rounded-lg border border-border shadow-sm">
       <form onSubmit={handleSubmit} className="space-y-3">
-        <div className="relative">
-          <Textarea
-            ref={textareaRef} // Assign ref here
-            value={content}
-            onChange={(e: ChangeEvent<HTMLTextAreaElement>) => setContent(e.target.value)}
-            placeholder="现在的想法是..."
-            rows={3}
-            className="resize-none focus:ring-primary focus:border-primary text-sm p-3 pr-12 block w-full border-none focus:ring-0"
-            aria-label="Note content"
-            disabled={isLoading}
-          />
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            className="absolute top-2 right-2 text-muted-foreground hover:text-primary h-8 w-8"
-            onClick={() => console.log("O logo clicked")} // Placeholder action
-            disabled={isLoading}
-            aria-label="Open AI options"
+        <Popover open={isSuggestionsOpen} onOpenChange={setIsSuggestionsOpen}>
+          <PopoverTrigger asChild>
+            {/* The Textarea itself acts as the conceptual anchor for the Popover */}
+            {/* No actual clickable trigger element is needed here since 'open' is controlled programmatically */}
+            <div className="relative">
+              <Textarea
+                ref={textareaRef}
+                value={content}
+                onChange={handleTextareaChange}
+                placeholder="现在的想法是..."
+                rows={3}
+                className="resize-none focus:ring-primary focus:border-primary text-sm p-3 pr-12 block w-full border-none focus:ring-0"
+                aria-label="Note content"
+                disabled={isLoading}
+                onBlur={() => {
+                  // Delay hiding suggestions to allow click on popover
+                  setTimeout(() => {
+                    if (!document.activeElement?.closest('[data-radix-popper-content-wrapper]')) {
+                       setIsSuggestionsOpen(false);
+                    }
+                  }, 100);
+                }}
+              />
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="absolute top-2 right-2 text-muted-foreground hover:text-primary h-8 w-8"
+                onClick={() => console.log("O logo clicked")} 
+                disabled={isLoading}
+                aria-label="Open AI options"
+              >
+                <Globe className="h-5 w-5" />
+              </Button>
+            </div>
+          </PopoverTrigger>
+          <PopoverContent 
+            className="w-[--radix-popover-trigger-width] p-0 max-h-60 overflow-auto shadow-lg"
+            side="bottom"
+            align="start"
+            onOpenAutoFocus={(e) => e.preventDefault()} // Keep focus on textarea
+            onCloseAutoFocus={(e) => e.preventDefault()} // Prevent focus shift on close
           >
-            <Globe className="h-5 w-5" />
-          </Button>
-        </div>
+            {currentSuggestions.map((tag) => (
+              <Button
+                key={tag}
+                variant="ghost"
+                className="w-full justify-start rounded-none px-3 py-1.5 text-sm font-normal h-auto"
+                onClick={() => handleSelectTag(tag)}
+                // Add hover/focus styling if needed
+              >
+                #{tag}
+              </Button>
+            ))}
+            {/* Optional: message if no suggestions but popover is technically open */}
+            {/* {currentSuggestions.length === 0 && tagQueryInfo && (
+              <p className="p-2 text-xs text-muted-foreground">No matching tags found.</p>
+            )} */}
+          </PopoverContent>
+        </Popover>
 
         {imagePreview && (
           <div className="relative group rounded-md overflow-hidden border border-muted shadow-sm max-w-xs">
@@ -213,7 +326,7 @@ export default function NoteInputForm({ onSaveNote, isLoading, noteToEdit, onCan
             )}
             <Button
               type="submit"
-              disabled={isLoading || (!content.trim() && !imagePreview)} // Disable if no content and no image
+              disabled={isLoading || (!content.trim() && !imagePreview)}
               className="bg-primary hover:bg-accent text-primary-foreground h-8 w-8 p-0 rounded-md"
               size="icon"
               aria-label={noteToEdit ? "Update note" : "Save note"}
