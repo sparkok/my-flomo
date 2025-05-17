@@ -62,7 +62,7 @@ export default function HomePage() {
       try {
         const parsedNotes: Note[] = JSON.parse(storedNotes).map((note: any) => ({
           ...note,
-          title: note.title || deriveTitleFromContent(note.content),
+          title: note.title || deriveTitleFromContent(note.content), // Ensure title is derived for older notes
           createdAt: new Date(note.createdAt),
         }));
         setNotes(parsedNotes);
@@ -184,7 +184,7 @@ export default function HomePage() {
   const allTags = useMemo(() => {
     const tagsSet = new Set<string>();
     notes.forEach(note => note.tags.forEach(tag => tagsSet.add(tag)));
-    ["产品", "故障检测", "成长"].forEach(st => tagsSet.add(st)); // Keep these as potential special tags
+    // Removed: ["产品", "故障检测", "成长"].forEach(st => tagsSet.add(st));
     return Array.from(tagsSet).sort();
   }, [notes]);
 
