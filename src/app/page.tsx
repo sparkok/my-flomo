@@ -40,11 +40,20 @@ import { deriveTitleFromContent, extractTagsFromContent } from "@/lib/noteUtils"
 const STORAGE_KEY = "sparkok_notes";
 const DATA_STORAGE_MODE = process.env.NEXT_PUBLIC_DATA_STORAGE_MODE || "localStorage";
 
+// Interface for the data passed to the interceptor
+interface ProspectiveNoteData {
+  id?: string; // Present if updating an existing note
+  content: string;
+  imageDataUri?: string;
+  title: string; // Derived title
+  tags: string[]; // Extracted tags
+  originalCreatedAt?: Date; // Present if updating
+}
 
 export default function HomePage() {
   const [notes, setNotes] = useState<Note[]>([]);
   const [activeTags, setActiveTags] = useState<Set<string>>(new Set());
-  const [isLoading, setIsLoading] = useState(false); 
+  const [isLoading, setIsLoading] = useState(false);
   const [isFetchingNotes, setIsFetchingNotes] = useState(true);
   const [noteToEdit, setNoteToEdit] = useState<Note | null>(null);
   const { toast } = useToast();
@@ -74,12 +83,12 @@ export default function HomePage() {
                 try {
                   currentTags = JSON.parse(note.tagsJson);
                 } catch {
-                  currentTags = extractTagsFromContent(content); 
+                  currentTags = extractTagsFromContent(content);
                 }
               } else {
                  currentTags = extractTagsFromContent(content);
               }
-              
+
               return {
                 ...note,
                 id: note.id || crypto.randomUUID(),
@@ -113,6 +122,23 @@ export default function HomePage() {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(notesToStore));
   }, []);
 
+  // Interceptor function. Customize its logic as needed.
+  // It receives the prospective note data before it's saved.
+  // Return false to prevent saving.
+  const beforeSaveNoteInterceptor = (prospectiveNote: ProspectiveNoteData): boolean => {
+    console.log("Intercepting note before save:", prospectiveNote);
+    // Example: Block notes if content is shorter than 5 characters (excluding title/tags)
+    // if (prospectiveNote.content.trim().length < 5) {
+    //   toast({
+    //     title: "Save Blocked by Interceptor",
+    //     description: "Note content is too short.",
+    //     variant: "destructive",
+    //   });
+    //   return false;
+    // }
+    return true; // Allow saving by default
+  };
+
 
   const handleSaveNote = useCallback(async (
     data: { content: string; imageDataUri?: string },
@@ -130,6 +156,39 @@ export default function HomePage() {
     }
     setIsLoading(true);
 
+    const currentTitle = deriveTitleFromContent(content);
+    const currentTags = extractTagsFromContent(content);
+
+    const prospectiveNote: ProspectiveNoteData = {
+      content,
+      imageDataUri,
+      title: currentTitle,
+      tags: currentTags,
+    };
+
+    if (noteIdToUpdate) {
+      prospectiveNote.id = noteIdToUpdate;
+      const existingNote = notes.find(n => n.id === noteIdToUpdate);
+      if (existingNote) {
+        prospectiveNote.originalCreatedAt = existingNote.createdAt;
+      }
+    }
+
+    // Call the interceptor
+    if (!beforeSaveNoteInterceptor(prospectiveNote)) {
+      // If the interceptor returns false, stop the save operation.
+      // A toast specific to the interceptor's reason can be shown within the interceptor itself.
+      // Or a generic one here:
+      toast({
+        title: "Note Save Interrupted",
+        description: "The note could not be saved due to a pre-save condition.",
+        variant: "default",
+      });
+      setIsLoading(false);
+      return; // Do not proceed with saving
+    }
+
+
     try {
       if (DATA_STORAGE_MODE === "database") {
         if (noteIdToUpdate) {
@@ -145,19 +204,18 @@ export default function HomePage() {
             toast({ title: "Note Saved", description: "Your note has been successfully saved to the database." });
           } else { throw new Error("Failed to save note on server"); }
         }
-      } else { 
-        const title = deriveTitleFromContent(content);
-        const tags = extractTagsFromContent(content);
+      } else {
+        // For localStorage, title and tags are already derived for prospectiveNote
         let updatedNotes;
 
         if (noteIdToUpdate) {
           const updatedNote: Note = {
             id: noteIdToUpdate,
-            title,
+            title: currentTitle,
             content,
-            tags,
+            tags: currentTags,
             imageDataUri,
-            createdAt: notes.find(n => n.id === noteIdToUpdate)?.createdAt || new Date(), 
+            createdAt: notes.find(n => n.id === noteIdToUpdate)?.createdAt || new Date(),
             updatedAt: new Date(),
           };
           updatedNotes = notes.map(note => note.id === noteIdToUpdate ? updatedNote : note);
@@ -165,9 +223,9 @@ export default function HomePage() {
         } else {
           const newNote: Note = {
             id: crypto.randomUUID(),
-            title,
+            title: currentTitle,
             content,
-            tags,
+            tags: currentTags,
             imageDataUri,
             createdAt: new Date(),
             updatedAt: new Date(),
