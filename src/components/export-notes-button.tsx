@@ -29,7 +29,7 @@ export default function ExportNotesButton({ notes }: ExportNotesButtonProps) {
     })), null, 2);
     const dataBlob = new Blob([dataStr], { type: 'application/json' });
     
-    const exportFileDefaultName = `sparkok_notes_${new Date().toISOString().split('T')[0]}.json`;
+    const exportFileDefaultName = `ShareOk_notes_${new Date().toISOString().split('T')[0]}.json`;
 
     const linkElement = document.createElement('a');
     linkElement.href = URL.createObjectURL(dataBlob);
@@ -55,3 +55,4 @@ export default function ExportNotesButton({ notes }: ExportNotesButtonProps) {
     </button>
   );
 }
+
